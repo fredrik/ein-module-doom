@@ -1,0 +1,3 @@
+# id Software's game data: fetched by scripts/fetch-wad.sh, never committed.
+*.wad
+*.WAD

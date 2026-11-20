@@ -1,0 +1,5 @@
+{
+  "sidebar": [
+    { "id": "doom.page", "section": "main", "label": "Doom", "icon": "skull", "to": "/doom", "order": 90, "signedIn": true }
+  ]
+}
