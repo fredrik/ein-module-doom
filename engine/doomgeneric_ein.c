@@ -17,8 +17,11 @@
 //	WADs into Emscripten's in-memory file system, calls ein_start
 //	once, then ein_tick from requestAnimationFrame, copies the frame
 //	from ein_screen onto its canvas whenever ein_frames moves on, and
-//	hands over keys with ein_key, already in Doom's key codes. Sound
-//	is ein_sound.c and opl_ein.c.
+//	hands over keys with ein_key, already in Doom's key codes. Saves
+//	are files in .savegame/ under the working directory, /: the page
+//	writes the player's there before ein_start and hears from
+//	ein_saved when Doom has written one. Sound is ein_sound.c and
+//	opl_ein.c.
 //
 
 #include <stdint.h>
@@ -75,6 +78,12 @@ int DG_GetKey(int *pressed, unsigned char *key)
 void DG_SetWindowTitle(const char *title)
 {
 }
+
+// Doom has saved the game in `slot`, in .savegame/doomsav<slot>.dsg
+// (save.patch calls this), for the page to keep.
+EM_JS(void, ein_saved, (int slot), {
+    if (Module.einSaved) Module.einSaved(slot);
+});
 
 // Start the game on the IWAD at `iwad` in the in-memory file system,
 // with the PWAD at `pwad` over it unless that is empty, its music made

@@ -2,10 +2,12 @@ import { ActionIcon, Box, Loader, Menu, Paper, ScrollArea, Stack, Text, Tooltip,
 import { EntityDetailHeader, TablerIcon } from '@ein/ui/components';
 import { usePhone } from '@ein/ui/hooks';
 import { formatBytes } from '@ein/ui/lib';
+import { currentUser, notify } from '@ein/ui/signals';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { type Engine, quitted, startEngine } from '../doom/engine.ts';
 import { doomKey } from '../doom/keys.ts';
 import { useGameLoop } from '../doom/loop.ts';
+import { loadSaves, saveKeeper, savesFolder } from '../doom/saves.ts';
 import { openSound, type Sound } from '../doom/sound.ts';
 import { titlePicture } from '../doom/titlepic.ts';
 import { deleteWad, listWads, type Wad, WADS } from '../doom/wads.ts';
@@ -50,7 +52,8 @@ const BAR_BUTTON = { size: 36, icon: 22 };
  * game beside them. A click on a WAD plays it, which is also the click a browser wants before a
  * page may make sound. WADs dropped anywhere on the page are uploaded into `WADS` and listed. While
  * the game has focus it takes every key it knows before the shell does, so Alt (strafe), Escape
- * (Doom's menu) and the rest reach the game rather than the shell's shortcuts.
+ * (Doom's menu) and the rest reach the game rather than the shell's shortcuts. A game saved from
+ * Doom's menu is kept in the player's home (`savesFolder`), and Load Game lists it next time.
  */
 export default function Doom() {
   const phone = usePhone();
@@ -119,10 +122,19 @@ export default function Doom() {
     audio.setMuted(muted);
     sound.current = audio;
     try {
+      // Someone signed in plays with their saved games of this WAD; without an account a save lasts
+      // as long as the page.
+      const username = currentUser.value?.username;
+      const folder = username ? savesFolder(username, wad.name) : undefined;
+      const saves = folder ? await loadSaves(folder) : [];
       const started = await startEngine({
         wad,
         wads: wads ?? [],
         sound: audio,
+        saves,
+        ...(folder
+          ? { onSave: saveKeeper(folder, (error) => notify({ message: `The game was not saved: ${error instanceof Error ? error.message : String(error)}`, color: 'red' })) }
+          : {}),
         log: (line) => {
           log.current = [...log.current.slice(-(LOG_TAIL - 1)), line];
           console.info(`[doom] ${line}`);

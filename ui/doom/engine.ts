@@ -1,4 +1,5 @@
 import { fileUrl } from '@ein/ui/lib';
+import type { Save } from './saves.ts';
 import type { SfxSink, Sound } from './sound.ts';
 import { iwadFor, readWad, type Wad, WADS } from './wads.ts';
 
@@ -7,7 +8,7 @@ const ASSETS = '/usr/modules/doom/assets';
 
 /** What `assets/doom.js` (Emscripten's glue, `engine/Containerfile`) gives back once the wasm runs. */
 type DoomModule = {
-  FS: { writeFile(path: string, data: Uint8Array): void };
+  FS: { writeFile(path: string, data: Uint8Array): void; readFile(path: string): Uint8Array; mkdir(path: string): void };
   HEAP16: Int16Array;
   ccall(name: string, returns: null, types: string[], args: unknown[]): void;
   _malloc(bytes: number): number;
@@ -45,6 +46,12 @@ export function quitted(error: unknown): boolean {
   return exit?.name === 'ExitStatus' && exit.status === 0;
 }
 
+/**
+ * Where Doom keeps its saves in its file system: doomgeneric's `.savegame/` under the working
+ * directory, which is `/`, as `doomsav<slot>.dsg`.
+ */
+const SAVES = '/.savegame';
+
 /** Fetch a file as bytes; `/file/` needs the session's cookie, which a same-origin fetch sends. */
 async function fetchFile(path: string): Promise<Uint8Array> {
   const response = await fetch(fileUrl(path));
@@ -55,13 +62,21 @@ async function fetchFile(path: string): Promise<Uint8Array> {
 /**
  * Load the engine and `wad` and start the game; `wads` are the others there are, to find the
  * IWAD a PWAD is played with. `log` gets what Doom prints, line by line, and `sound` the game's
- * sound effects and music; without it the game is silent.
+ * sound effects and music; without it the game is silent. `saves` are the player's saved games of
+ * `wad`, which Doom's Load Game lists, and `onSave` hears each game Doom saves.
  *
  * The glue is imported from a URL held in a variable, so core's bundler leaves it alone and the
  * browser loads it at runtime. The wasm is fetched here and handed over as bytes, so how `/file/`
  * labels a `.wasm` does not matter.
  */
-export async function startEngine({ wad, wads, sound, log }: { wad: Wad; wads: Wad[]; sound?: Sound; log: (line: string) => void }): Promise<Engine> {
+export async function startEngine({ wad, wads, sound, log, saves = [], onSave }: {
+  wad: Wad;
+  wads: Wad[];
+  sound?: Sound;
+  log: (line: string) => void;
+  saves?: Save[];
+  onSave?: (save: Save) => void;
+}): Promise<Engine> {
   const glueUrl = fileUrl(`${ASSETS}/doom.js`);
   const [glue, wasmBinary, bytes] = await Promise.all([
     import(glueUrl) as Promise<{ default: (options: object) => Promise<DoomModule> }>,
@@ -79,9 +94,13 @@ export async function startEngine({ wad, wads, sound, log }: { wad: Wad; wads: W
   }
 
   const einSound: SfxSink | undefined = sound?.sfx;
-  const doom = await glue.default({ wasmBinary, print: log, printErr: log, einSound });
+  // Called by `ein_saved` once Doom has written the slot's file; `doom` is set by then.
+  const einSaved = (slot: number) => onSave?.({ slot, bytes: doom.FS.readFile(`${SAVES}/doomsav${slot}.dsg`) });
+  const doom = await glue.default({ wasmBinary, print: log, printErr: log, einSound, einSaved });
   // Without sound the music is made at a rate nothing asks for, and never pulled.
   const sampleRate = sound?.context.sampleRate ?? 48000;
+  doom.FS.mkdir(SAVES);
+  for (const save of saves) doom.FS.writeFile(`${SAVES}/doomsav${save.slot}.dsg`, save.bytes);
   // The engine's file system is its own, in memory: the WADs go in under their own names, which
   // is what Doom tells its games apart by.
   if (iwad && iwadBytes) {
