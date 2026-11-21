@@ -319,8 +319,8 @@ export default function Doom() {
                 justify='center'
                 gap='md'
                 p='md'
-                // While a WAD loads, or after the game stopped, the last frame stays dimmed behind.
-                bg={state.kind === 'loading' || state.kind === 'error' ? 'rgba(0, 0, 0, 0.75)' : undefined}
+                // While a WAD loads, and after the game quit or stopped, its last frame stays dimmed behind.
+                bg='rgba(0, 0, 0, 0.75)'
                 style={{ overflow: 'auto' }}
               >
                 {state.kind === 'error' && (
