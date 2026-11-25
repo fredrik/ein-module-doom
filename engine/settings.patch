@@ -1,0 +1,36 @@
+diff --git a/doomgeneric/m_config.c b/doomgeneric/m_config.c
+index 865e168..414854e 100644
+--- a/doomgeneric/m_config.c
++++ b/doomgeneric/m_config.c
+@@ -1608,7 +1608,6 @@ static const int scantokey[128] =
+ 
+ static void SaveDefaultCollection(default_collection_t *collection)
+ {
+-#if ORIGCODE
+     default_t *defaults;
+     int i, v;
+     FILE *f;
+@@ -1708,7 +1707,6 @@ static void SaveDefaultCollection(default_collection_t *collection)
+     }
+ 
+     fclose (f);
+-#endif
+ }
+ 
+ // Parses integer values in the configuration file
+@@ -1770,7 +1768,6 @@ static void SetVariable(default_t *def, char *value)
+ 
+ static void LoadDefaultCollection(default_collection_t *collection)
+ {
+-#if ORIGCODE
+     FILE *f;
+     default_t *def;
+     char defname[80];
+@@ -1828,7 +1825,6 @@ static void LoadDefaultCollection(default_collection_t *collection)
+     }
+ 
+     fclose (f);
+-#endif
+ }
+ 
+ // Set the default filenames to use for configuration files.

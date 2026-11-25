@@ -1,5 +1,5 @@
 import { homePath } from '@ein/paths';
-import { type NodeChildEntry, shq } from '@ein/ui/lib';
+import { fileUrl, type NodeChildEntry, shq } from '@ein/ui/lib';
 import { execCommand, execScript } from '@ein/ui/signals';
 
 /**
@@ -70,4 +70,46 @@ function fromBase64(text: string): Uint8Array {
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes;
+}
+
+/** Where `username` keeps their settings of Doom's: one folder for every WAD, as Doom's own are. */
+export const settingsFolder = (username: string): string => `${homePath(username)}/.doom`;
+
+/**
+ * Doom's settings files, as it writes them on Quit: `default.cfg`, its own
+ * (keys, mouse, volumes, screen size, messages), and `doomgenericdoom.cfg`, Chocolate Doom's further
+ * ones.
+ */
+export const SETTINGS_FILES = ['default.cfg', 'doomgenericdoom.cfg'];
+
+/** One of Doom's settings files: its name and its text. */
+export type Settings = { name: string; text: string };
+
+/** The settings files in `folder` there are, which is made when it is not there yet. */
+export async function loadSettings(folder: string): Promise<Settings[]> {
+  await execCommand(`mkdir -p ${shq(folder)}`);
+  const entries = await execCommand<NodeChildEntry[]>(`ls -l ${shq(folder)}`);
+  const names = entries.map((entry) => entry.name).filter((name) => SETTINGS_FILES.includes(name));
+  return await Promise.all(names.map(async (name) => {
+    const response = await fetch(fileUrl(`${folder}/${name}`));
+    if (!response.ok) throw new Error(`${name}: ${response.status} ${response.statusText}`);
+    return { name, text: await response.text() };
+  }));
+}
+
+/**
+ * Keep settings in `folder`, which `loadSettings` made, one keeping after the other. The files of one
+ * go out together with PUT, which stores the body as the file, and the browser finishes them even
+ * when the page has gone (`keepalive`): the page keeps the settings as it is closed. `onError` hears
+ * a file that could not be kept.
+ */
+export function settingsKeeper(folder: string, onError: (error: unknown) => void): (settings: Settings[]) => void {
+  let queue = Promise.resolve();
+  const put = async ({ name, text }: Settings) => {
+    const response = await fetch(fileUrl(`${folder}/${name}`), { method: 'PUT', body: text, keepalive: true });
+    if (!response.ok) throw new Error(`${name}: ${response.status} ${response.statusText}`);
+  };
+  return (settings) => {
+    queue = queue.then(() => Promise.all(settings.map(put))).then(() => undefined, onError);
+  };
 }

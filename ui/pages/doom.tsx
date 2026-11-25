@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { type Engine, quitted, startEngine } from '../doom/engine.ts';
 import { doomKey } from '../doom/keys.ts';
 import { useGameLoop } from '../doom/loop.ts';
-import { loadSaves, saveKeeper, savesFolder } from '../doom/saves.ts';
+import { loadSaves, loadSettings, saveKeeper, savesFolder, type Settings, settingsFolder, settingsKeeper } from '../doom/saves.ts';
 import { openSound, type Sound } from '../doom/sound.ts';
 import { titlePicture } from '../doom/titlepic.ts';
 import { deleteWad, listWads, type Wad, WADS } from '../doom/wads.ts';
@@ -61,6 +61,8 @@ export default function Doom() {
   const canvas = useRef<HTMLCanvasElement>(null);
   const engine = useRef<Engine | null>(null);
   const sound = useRef<Sound | null>(null);
+  // Where the running game's settings go: the player's home, or nowhere without an account.
+  const keepSettings = useRef<((settings: Settings[]) => void) | null>(null);
   const log = useRef<string[]>([]);
   const [wads, setWads] = useState<Wad[] | null>(null);
   const [listError, setListError] = useState<string>();
@@ -96,12 +98,31 @@ export default function Doom() {
   }, []);
   useEffect(refresh, [refresh]);
 
+  // Keep the game's settings: as Quit wrote them, or with `write`, written now.
+  const keepFrom = useCallback((write: boolean) => {
+    try {
+      const settings = engine.current?.settings(write);
+      if (settings?.length) keepSettings.current?.(settings);
+    } catch {
+      // A game that already ended can write nothing more.
+    }
+  }, []);
+
   const stop = useCallback(() => {
+    // The player's settings are kept as Quit keeps them, when the game is still there to write them.
+    keepFrom(true);
     engine.current = null;
     sound.current?.close();
     sound.current = null;
-  }, []);
+  }, [keepFrom]);
   useEffect(() => stop, [stop]);
+  // Closing or reloading the tab unmounts nothing, so the settings are written as the page goes; the
+  // game runs on in a page brought back from the browser's cache.
+  useEffect(() => {
+    const onHide = () => keepFrom(true);
+    globalThis.addEventListener('pagehide', onHide);
+    return () => globalThis.removeEventListener('pagehide', onHide);
+  }, [keepFrom]);
 
   const play = useCallback(async (wad: Wad) => {
     stop();
@@ -122,16 +143,21 @@ export default function Doom() {
     audio.setMuted(muted);
     sound.current = audio;
     try {
-      // Someone signed in plays with their saved games of this WAD; without an account a save lasts
-      // as long as the page.
+      // Someone signed in plays with their saved games of this WAD and their settings; without an
+      // account they last as long as the page.
       const username = currentUser.value?.username;
       const folder = username ? savesFolder(username, wad.name) : undefined;
-      const saves = folder ? await loadSaves(folder) : [];
+      const settingsAt = username ? settingsFolder(username) : undefined;
+      const [saves, settings] = await Promise.all([folder ? loadSaves(folder) : [], settingsAt ? loadSettings(settingsAt) : []]);
+      keepSettings.current = settingsAt
+        ? settingsKeeper(settingsAt, (error) => notify({ message: `The settings were not kept: ${error instanceof Error ? error.message : String(error)}`, color: 'red' }))
+        : null;
       const started = await startEngine({
         wad,
         wads: wads ?? [],
         sound: audio,
         saves,
+        settings,
         ...(folder
           ? { onSave: saveKeeper(folder, (error) => notify({ message: `The game was not saved: ${error instanceof Error ? error.message : String(error)}`, color: 'red' })) }
           : {}),
@@ -167,6 +193,9 @@ export default function Doom() {
   }, [state, stop, refresh]);
 
   useGameLoop(state.kind === 'running' ? engine.current : null, canvas, (error) => {
+    // The game has ended: Quit wrote the settings, and after an error it can write nothing.
+    if (quitted(error)) keepFrom(false);
+    engine.current = null;
     stop();
     // Quit from Doom's menu leaves the page as it was before Play.
     if (quitted(error)) setState({ kind: 'idle' });
