@@ -1,18 +1,23 @@
 import { shq } from '@ein/ui/lib';
 import { execCommand } from '@ein/ui/signals';
 import type { Wad } from '../../lib/api.ts';
-import { IWADS, WADS } from '../../lib/wads.ts';
+import { IWADS, type Offer, OFFERS, WADS } from '../../lib/wads.ts';
 
-export type { Wad };
-export { WADS };
+export type { Offer, Wad };
+export { OFFERS, WADS };
 
 /**
  * The WADs in `WADS`, as `doom-wads` lists them. The folder is made when it is not there yet, so the
- * list is empty rather than an error before Freedoom lands, and an upload has somewhere to go.
+ * list is empty rather than an error before anything is fetched, and an upload has somewhere to go.
  */
 export async function listWads(): Promise<Wad[]> {
   await execCommand(`mkdir -p ${shq(WADS)}`);
   return await execCommand<Wad[]>('doom-wads');
+}
+
+/** Fetch the offered game data `name` into the WAD folder (`doom-fetch`), which takes as long as the download does. */
+export async function fetchOffer(name: string): Promise<void> {
+  await execCommand(`doom-fetch ${shq(name)}`);
 }
 
 export async function deleteWad(name: string): Promise<void> {

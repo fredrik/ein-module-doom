@@ -1,4 +1,4 @@
-import { ActionIcon, Box, Loader, Menu, Paper, ScrollArea, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core';
+import { ActionIcon, Box, Button, Loader, Menu, Paper, ScrollArea, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core';
 import { EntityDetailHeader, TablerIcon } from '@ein/ui/components';
 import { usePhone } from '@ein/ui/hooks';
 import { formatBytes } from '@ein/ui/lib';
@@ -10,7 +10,7 @@ import { useGameLoop } from '../doom/loop.ts';
 import { loadSaves, loadSettings, saveKeeper, savesFolder, type Settings, settingsFolder, settingsKeeper } from '../doom/saves.ts';
 import { openSound, type Sound } from '../doom/sound.ts';
 import { titlePicture } from '../doom/titlepic.ts';
-import { deleteWad, listWads, type Wad, WADS } from '../doom/wads.ts';
+import { deleteWad, fetchOffer, listWads, type Offer, OFFERS, type Wad, WADS } from '../doom/wads.ts';
 
 export const handle = { fullBleed: true, title: 'Doom', pattern: 'mixed' };
 
@@ -107,6 +107,20 @@ export default function Doom() {
       // A game that already ended can write nothing more.
     }
   }, []);
+
+  // The offered game data being fetched, by name: each is a command that runs as long as its download.
+  const [fetching, setFetching] = useState<string[]>([]);
+  const fetchOne = useCallback(async (offer: Offer) => {
+    setFetching((names) => [...names, offer.name]);
+    try {
+      await fetchOffer(offer.name);
+    } catch (error) {
+      notify({ message: `${offer.title} was not fetched: ${error instanceof Error ? error.message : String(error)}`, color: 'red' });
+    } finally {
+      setFetching((names) => names.filter((name) => name !== offer.name));
+      refresh();
+    }
+  }, [refresh]);
 
   const stop = useCallback(() => {
     // The player's settings are kept as Quit keeps them, when the game is still there to write them.
@@ -271,7 +285,16 @@ export default function Doom() {
     frame.current?.focus();
   };
 
-  const list = { wads, error: listError, active: state.kind === 'loading' || state.kind === 'running' ? state.wad.name : selected?.name, onPlay: play };
+  const list = {
+    wads,
+    error: listError,
+    active: state.kind === 'loading' || state.kind === 'running' ? state.wad.name : selected?.name,
+    onPlay: play,
+    // Fetching takes curl, which EiN lets only the administrator run.
+    canFetch: currentUser.value?.admin === true,
+    fetching,
+    onFetch: fetchOne,
+  };
 
   return (
     <Paper
@@ -369,7 +392,9 @@ export default function Doom() {
                       </Stack>
                     </UnstyledButton>
                   )
-                  : !selected && <Text c='gray.4' ta='center' size='sm'>{wads ? 'No game data yet. Drop a WAD file on the page.' : ''}</Text>}
+                  : !selected && (
+                    <Text c='gray.4' ta='center' size='sm'>{wads ? 'No game data yet. Fetch Freedoom from the list of WADs, or drop a WAD file on the page.' : ''}</Text>
+                  )}
               </Stack>
             )}
           </Box>
@@ -391,23 +416,68 @@ type ListProps = {
   /** The WAD playing, loading, or chosen to play next. */
   active?: string;
   onPlay: (wad: Wad) => void;
+  /** The offered game data being fetched, by name. */
+  fetching: string[];
+  onFetch: (offer: Offer) => void;
+  /** Whether this person may fetch, which only an administrator may. */
+  canFetch: boolean;
 };
 
 /**
- * The WADs, each a row that plays it. In the pane beside the game (`onDelete`, which gives each a
- * button that deletes it) a row is the game's title screen with its title under it; in the phone's
- * menu, its title alone. `onPick` hears a row chosen.
+ * The WADs, each a row that plays it, and after them the game data offered while one of its WADs is
+ * not here, with a button that fetches it. In the pane beside the game (`onDelete`, which gives each
+ * WAD a button that deletes it) a WAD's row is its title screen with its title under it; in the
+ * phone's menu, its title alone. `onPick` hears a WAD chosen.
  */
-function WadList({ wads, error, active, onPlay, onDelete, onPick }: ListProps & { onDelete?: (wad: Wad) => void; onPick?: () => void }) {
+function WadList({ wads, error, active, onPlay, onDelete, onPick, fetching, onFetch, canFetch }: ListProps & { onDelete?: (wad: Wad) => void; onPick?: () => void }) {
   if (error) return <Text size='sm' c='red' p='sm'>{error}</Text>;
   if (!wads) return <Loader size='sm' m='sm' />;
-  if (wads.length === 0) {
-    return (
-      <Text size='sm' c='dimmed' p='sm'>
-        No WADs yet. Freedoom is fetched when the module is installed and shows up here when it is in; drop a WAD file on the page to add your own.
-      </Text>
-    );
-  }
+  const offers = OFFERS.filter((offer) => offer.wads.some((name) => !wads.some((wad) => wad.name === name)));
+  return (
+    <Stack gap='md'>
+      {wads.length === 0
+        ? (
+          <Text size='sm' c='dimmed' p='sm' pb={0}>
+            No WADs yet. Fetch Freedoom below, or drop a WAD file on the page to add your own.
+          </Text>
+        )
+        : <Wads wads={wads} active={active} onPlay={onPlay} onDelete={onDelete} onPick={onPick} />}
+      {offers.length > 0 && (
+        <Stack gap='xs' px={onDelete ? 0 : 'xs'} pb='xs'>
+          <Text size='xs' c='dimmed' fw={600} tt='uppercase'>Free to fetch</Text>
+          {offers.map((offer) => (
+            <Stack key={offer.name} gap={4} data-doom-offer={offer.name}>
+              <Text size='sm'>{offer.title}</Text>
+              <Text size='xs' c='dimmed'>{offer.about}</Text>
+              {canFetch
+                ? (
+                  <Button
+                    size='xs'
+                    variant='light'
+                    color='red'
+                    leftSection={<TablerIcon name='download' size={14} />}
+                    loading={fetching.includes(offer.name)}
+                    onClick={() => onFetch(offer)}
+                    style={{ alignSelf: 'flex-start' }}
+                  >
+                    Fetch · {formatBytes(offer.download)}
+                  </Button>
+                )
+                : <Text size='xs' c='dimmed' fs='italic'>An administrator can fetch it.</Text>}
+            </Stack>
+          ))}
+        </Stack>
+      )}
+    </Stack>
+  );
+}
+
+/** The WADs' rows: `WadList`'s. */
+function Wads({ wads, active, onPlay, onDelete, onPick }: Pick<ListProps, 'active' | 'onPlay'> & {
+  wads: Wad[];
+  onDelete?: (wad: Wad) => void;
+  onPick?: () => void;
+}) {
   const detail = (wad: Wad) => wad.otherGame ? `${wad.name} · not playable here` : wad.title === wad.name ? formatBytes(wad.size) : `${wad.name} · ${formatBytes(wad.size)}`;
   return (
     <Stack gap={onDelete ? 'xs' : 2}>
