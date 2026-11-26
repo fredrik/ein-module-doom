@@ -15,7 +15,8 @@ It is not one of EiN's own modules and has nothing to do with a family's archive
 As an administrator, open **Settings → Modules**, choose **Install**, and give
 `https://github.com/fredrik/ein-module-doom` under **From a repository**.
 
-Doom appears in the sidebar. While the module installs, it fetches
+Doom appears in the sidebar under **Games**, a section between Browse and System that other games'
+modules can put their pages in too. While the module installs, it fetches
 [Freedoom](https://freedoom.github.io), free game data for Doom's engine, so there is something to
 play straight away: **Freedoom: Phase 1** plays as Doom, **Freedoom: Phase 2** as Doom II.
 
@@ -86,7 +87,7 @@ No mouse.
 
 | Path                                 | What it is for                                                                                                                   |
 | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `mod.json`, `ui/nav.json`            | The manifest and the sidebar entry.                                                                                              |
+| `mod.json`, `ui/nav.json`            | The manifest, and the sidebar entry with its Games section.                                                                      |
 | `ui/pages/doom.tsx`                  | The page: the list of WADs, uploads, the game loop, keyboard, sound and fullscreen.                                              |
 | `ui/cards/demo.tsx`                  | The dashboard card, offered in `etc/dashboard.d/cards.json`: a game running its demos.                                           |
 | `ui/doom/wads.ts`                    | Lists, deletes and reads WADs, and finds the IWAD a PWAD is played over.                                                         |
