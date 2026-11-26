@@ -20,7 +20,10 @@
 //	hands over keys with ein_key, already in Doom's key codes. Saves
 //	are files in .savegame/ under the working directory, /: the page
 //	writes the player's there before ein_start and hears from
-//	ein_saved when Doom has written one. Sound is ein_sound.c and
+//	ein_saved when Doom has written one. Settings are .default.cfg and
+//	.doomgenericdoom.cfg in /: the page writes the player's there
+//	before ein_start, and reads them back after Quit, which writes
+//	them, or after ein_save_config. Sound is ein_sound.c and
 //	opl_ein.c.
 //
 
@@ -30,6 +33,7 @@
 
 #include "doomgeneric.h"
 #include "i_sound.h"
+#include "m_config.h"
 
 // Keys the page handed over that the game has not read yet. A frame
 // reads them all, so this only needs to hold one frame's worth.
@@ -97,6 +101,14 @@ void ein_start(const char *iwad, const char *pwad, int samplerate)
     argv[4] = (char *) pwad;
     snd_samplerate = samplerate;
     doomgeneric_Create(pwad[0] != '\0' ? 5 : 3, argv);
+}
+
+// Write Doom's settings now, as Quit does, so the page can keep them
+// when it stops the game without it.
+EMSCRIPTEN_KEEPALIVE
+void ein_save_config()
+{
+    M_SaveDefaults();
 }
 
 // Run whatever tics are due and draw a frame.

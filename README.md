@@ -33,7 +33,7 @@ these keys before EiN does, Alt+letter included; click outside it to give them b
 the header turn the sound off and on and show the game full screen. Quit in Doom's menu goes back
 to the list.
 
-## Saved games
+## Saved games and settings
 
 Doom's **Save Game** and **Load Game** keep your games in your home, in `.doom/saves/<WAD>/`, one
 folder for each WAD you play, so a save is loaded only into the game it was made in and nobody else
@@ -41,7 +41,13 @@ sees it. Each of the six slots is a file, `doomsav0.dsg.b64` to `doomsav5.dsg.b6
 bytes in base64, since the page reads and writes them through EiN's shell, which carries text.
 `base64 -d` turns one back into the `.dsg` Chocolate Doom loads.
 
-Without an account, a save lasts only as long as the page.
+Doom's settings are kept in your home too, in `.doom/`, the same for every WAD, as Doom keeps them:
+`default.cfg`, with the volumes, the screen size, messages and the keys bound, and
+`doomgenericdoom.cfg`, with Chocolate Doom's further ones. They are written when you quit the game,
+choose another WAD, go to another page of EiN's or close the tab, and read when a game starts, all
+but the sound's sample rate, which is the browser's.
+
+Without an account, saves and settings last only as long as the page.
 
 ## On a dashboard
 
@@ -93,7 +99,7 @@ No mouse.
 | `ui/doom/wads.ts`                    | Lists, deletes and reads WADs, and finds the IWAD a PWAD is played over.                                                         |
 | `ui/doom/titlepic.ts`                | Draws a WAD's title screen out of its `TITLEPIC` and palette, fetching only those.                                               |
 | `ui/doom/engine.ts`                  | Loads the glue, the wasm and the WADs, and wraps the engine's exports.                                                           |
-| `ui/doom/saves.ts`                   | Reads and keeps the player's saved games in their home.                                                                          |
+| `ui/doom/saves.ts`                   | Reads and keeps the player's saved games and settings in their home.                                                             |
 | `ui/doom/loop.ts`                    | Runs the game on animation frames and draws its frames.                                                                          |
 | `ui/doom/sound.ts`                   | The sound effects and the music on Web Audio.                                                                                    |
 | `ui/doom/keys.ts`                    | Browser key codes to Doom's.                                                                                                     |
@@ -108,6 +114,7 @@ No mouse.
 | `engine/nonblocking-wipe.patch`      | Runs the screen melt a frame at a time instead of in a loop that froze the page for a second.                                    |
 | `engine/quit.patch`                  | Makes Quit exit, and an exit function of the wrong type one of the right type, which WebAssembly traps on.                       |
 | `engine/save.patch`                  | Tells the page when Doom has saved a game, so it can keep it.                                                                    |
+| `engine/settings.patch`              | Puts back Chocolate Doom's reading and writing of the settings files, which doomgeneric had left out.                            |
 | `assets/doom.js`, `assets/doom.wasm` | The built engine, committed, since a module is installed as its repository stands. `assets/doom-build.txt` says what built them. |
 | `scripts/build-engine.sh`            | Rebuilds `assets/doom.js` and `assets/doom.wasm`.                                                                                |
 | `test/smoke.mjs`                     | Signs in with headless Chrome, plays a little, saves screenshots.                                                                |
@@ -121,7 +128,8 @@ Needs only docker with buildx, or podman; nothing is installed on the host.
 
 It builds `engine/Containerfile` and exports the result into `assets/` with the local exporter. The
 source of the committed `assets/doom.wasm` is doomgeneric at the commit `engine/Containerfile`
-pins, with `engine/nonblocking-wipe.patch`, `engine/quit.patch` and `engine/save.patch` applied,
+pins, with `engine/nonblocking-wipe.patch`, `engine/quit.patch`, `engine/save.patch` and
+`engine/settings.patch` applied,
 Chocolate Doom's `i_oplmusic.c`, `midifile.c`, `opl3.c` and `opl_queue.c` at the release it pins,
 and the `engine/` files added.
 
