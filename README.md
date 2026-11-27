@@ -74,8 +74,8 @@ installed again. **Delete game**, in the ⋮ menu of a WAD's page, deletes it fo
 offered again once one of its WADs is gone. In EiN's terminal, `doom-fetch freedoom1.wad` (or
 `freedoom2.wad`) fetches it, as **Fetch** does.
 
-Heretic, Hexen and Strife run on Doom's engine too, but not on this build of it: their IWADs' cards
-say they are not playable here.
+Heretic, Hexen and Strife run on Doom's engine too, but not on this build of it: their IWADs are
+left off the Games page.
 
 In EiN's terminal, `doom-wads` lists the WADs with their titles, and Freedoom while it is not
 fetched; `games-list` lists them with every other game module's games.
