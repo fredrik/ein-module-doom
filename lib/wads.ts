@@ -24,15 +24,51 @@ const OFFERS: Offer[] = [
  * The IWADs known by name, with their titles, in the order they came out, which is the list's, and
  * the order an IWAD for a PWAD is looked for in.
  */
-const IWADS: { name: string; title: string; maps: 'episodes' | 'levels' }[] = [
-  { name: 'doom1.wad', title: 'Doom (shareware)', maps: 'episodes' },
-  { name: 'doom.wad', title: 'Doom', maps: 'episodes' },
-  { name: 'doom2.wad', title: 'Doom II', maps: 'levels' },
-  { name: 'tnt.wad', title: 'Final Doom: TNT: Evilution', maps: 'levels' },
-  { name: 'plutonia.wad', title: 'Final Doom: The Plutonia Experiment', maps: 'levels' },
-  { name: 'freedoom1.wad', title: 'Freedoom: Phase 1', maps: 'episodes' },
-  { name: 'freedoom2.wad', title: 'Freedoom: Phase 2', maps: 'levels' },
-  { name: 'freedm.wad', title: 'FreeDM', maps: 'levels' },
+const IWADS: { name: string; title: string; maps: 'episodes' | 'levels'; description: string }[] = [
+  {
+    name: 'doom1.wad',
+    title: 'Doom (shareware)',
+    maps: 'episodes',
+    description:
+      "Knee-Deep in the Dead, the first episode of id Software's Doom (1993): a marine alone against the demons of Hell on Mars's moon Phobos, free to play and pass on.",
+  },
+  {
+    name: 'doom.wad',
+    title: 'Doom',
+    maps: 'episodes',
+    description: "id Software's 1993 first-person shooter: a marine alone against the demons of Hell on Mars's moons Phobos and Deimos, and beyond.",
+  },
+  {
+    name: 'doom2.wad',
+    title: 'Doom II',
+    maps: 'levels',
+    description: 'Doom II: Hell on Earth (1994): the demons have reached Earth, and the marine fights through thirty levels of a ruined city and back into Hell.',
+  },
+  {
+    name: 'tnt.wad',
+    title: 'Final Doom: TNT: Evilution',
+    maps: 'levels',
+    description: "Half of Final Doom (1996): thirty-two levels by TeamTNT, a research base on Jupiter's moon Io overrun by Hell, on Doom II's engine.",
+  },
+  {
+    name: 'plutonia.wad',
+    title: 'Final Doom: The Plutonia Experiment',
+    maps: 'levels',
+    description: "Half of Final Doom (1996): thirty-two hard levels by Dario and Milo Casali, on Doom II's engine.",
+  },
+  {
+    name: 'freedoom1.wad',
+    title: 'Freedoom: Phase 1',
+    maps: 'episodes',
+    description: "Free game data for Doom's engine, made by its community: four episodes of new levels, monsters and music, played as the first Doom is.",
+  },
+  {
+    name: 'freedoom2.wad',
+    title: 'Freedoom: Phase 2',
+    maps: 'levels',
+    description: "Free game data for Doom's engine, made by its community: thirty-two levels of new maps, monsters and music, played as Doom II is.",
+  },
+  { name: 'freedm.wad', title: 'FreeDM', maps: 'levels', description: "Freedoom's deathmatch levels, made for playing against each other." },
 ];
 
 /**
@@ -166,6 +202,7 @@ export async function findWads(cmd: Command): Promise<Game[]> {
     const under = iwads.find((each) => each.name === iwad)?.directory;
     const cover = await titlePicture(cmd, under ? [under, directory] : [directory]).catch(() => undefined);
     const title = known(name)?.title ?? name;
+    const description = known(name)?.description;
     const played = directory.kind === 'PWAD' ? iwad ? `on ${known(iwad)?.title ?? iwad}` : 'no IWAD here for it' : undefined;
     const detail = [title === name ? undefined : name, sizeText(size), played].filter(Boolean).join(' · ');
     return {
@@ -174,6 +211,7 @@ export async function findWads(cmd: Command): Promise<Game[]> {
       state: 'installed',
       path: `${WADS}/${name}`,
       detail,
+      ...(description ? { description } : {}),
       size,
       ...(cover ? { cover } : {}),
       kind: directory.kind,

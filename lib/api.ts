@@ -12,6 +12,8 @@ export type Wad = {
   path: string;
   /** Its file's name and size, and what it is played with, as the Games page shows them under its title. */
   detail: string;
+  /** What the game is, for an IWAD the module knows, shown under its title on its page. */
+  description?: string;
   /** Bytes. */
   size: number;
   /** Its title screen, the `TITLEPIC` Doom shows when it is played, as a PNG `data:` URL; none when there is none to show. */
