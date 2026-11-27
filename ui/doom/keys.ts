@@ -6,7 +6,7 @@
  * same key it went down as, whatever the keyboard layout makes of it.
  */
 
-/** Each key the game takes: its SDL scancode, and its number in the settings files. Generated from Crispy Doom 7.2's two tables. */
+/** Each key the game takes: its SDL scancode, and its number in the settings files, its own where two keys make the same (the Shifts). From Crispy Doom 7.2's two tables. */
 const KEYS: Record<string, [scancode: number, setting: number]> = {
   KeyA: [4, 30],
   KeyB: [5, 48],
@@ -107,7 +107,7 @@ const KEYS: Record<string, [scancode: number, setting: number]> = {
   ShiftLeft: [225, 42],
   AltLeft: [226, 56],
   ControlRight: [228, 29],
-  ShiftRight: [229, 42],
+  ShiftRight: [229, 54],
   AltRight: [230, 56],
 };
 

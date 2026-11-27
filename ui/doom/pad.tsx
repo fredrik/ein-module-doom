@@ -28,6 +28,9 @@ const CAPS: Record<string, { x: number; y: number; w: number }> = {
 
 /** What each of the game's mouse settings does, as the drawing names it. */
 const MOUSE_ACTIONS: Record<string, string> = {
+  // The wheel's weapons first: Crispy also binds Run to the wheel turning up, which a turn holds for no time.
+  mouseb_nextweapon: 'Next weapon',
+  mouseb_prevweapon: 'Prev weapon',
   mouseb_fire: 'Fire',
   mouseb_strafe: 'Strafe',
   mouseb_forward: 'Forward',
@@ -35,8 +38,6 @@ const MOUSE_ACTIONS: Record<string, string> = {
   mouseb_speed: 'Run',
   mouseb_use: 'Use',
   mouseb_jump: 'Jump',
-  mouseb_nextweapon: 'Next weapon',
-  mouseb_prevweapon: 'Prev weapon',
 };
 
 /** The keys that are never a control's: Escape, which lets go of a change, and F11, fullscreen. */
