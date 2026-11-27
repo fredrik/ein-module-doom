@@ -64,9 +64,11 @@ const SETTINGS_FILES = ['default.cfg', 'doomgenericdoom.cfg'];
 
 /**
  * The files the player keeps of a game, by their paths in their saves folder of it: its saves and
- * its settings files (the adapter's `kept`).
+ * its settings files (the adapter's `kept`). The settings are the player's whatever WAD they play,
+ * kept once in `~/.doom` (`SHARED`).
  */
 export const KEPT = /^(doomsav\d\.dsg|default\.cfg|doomgenericdoom\.cfg)$/;
+export const SHARED = /^(default\.cfg|doomgenericdoom\.cfg)$/;
 
 /**
  * Where Doom keeps a settings file in its file system: doomgeneric joins its configuration directory,
