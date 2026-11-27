@@ -95,9 +95,6 @@ async function fetchFile(path: string): Promise<Uint8Array> {
  * labels a `.wasm` does not matter.
  */
 export async function startEngine({ game, sound, log, kept, onKeep }: Pick<StartOptions<Wad>, 'game' | 'sound' | 'log' | 'kept' | 'onKeep'>): Promise<Engine> {
-  if (game.otherGame) {
-    throw new Error(`${game.id} is ${game.otherGame}, not Doom. Doom plays Doom's games only: Doom, Doom II, Final Doom and Freedoom, and WADs made for them.`);
-  }
   if (game.kind === 'PWAD' && !game.iwad) {
     throw new Error(`${game.id} adds to a game, and there is no IWAD here for it: drop doom2.wad or doom.wad on the Games page, or have Freedoom fetched again`);
   }

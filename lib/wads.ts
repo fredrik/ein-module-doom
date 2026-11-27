@@ -37,7 +37,7 @@ const IWADS: { name: string; title: string; maps: 'episodes' | 'levels' }[] = [
 
 /**
  * IWADs of the other games on Doom's engine, which doomgeneric does not play: each needs an engine
- * of its own. The list names them and says so rather than loading them to fail.
+ * of its own. The list leaves them out.
  */
 const OTHER_GAMES: Record<string, string> = {
   'heretic.wad': 'Heretic',
@@ -50,10 +50,10 @@ const OTHER_GAMES: Record<string, string> = {
 
 const known = (name: string) => IWADS.find((iwad) => iwad.name === name.toLowerCase());
 
-/** Known IWADs first, then the other WADs, then the other games' IWADs, which do not play here. */
+/** Known IWADs first, then the other WADs. */
 const rank = (name: string) => {
   const at = IWADS.findIndex((iwad) => iwad.name === name.toLowerCase());
-  return at !== -1 ? at : OTHER_GAMES[name.toLowerCase()] ? IWADS.length + 1 : IWADS.length;
+  return at !== -1 ? at : IWADS.length;
 };
 
 /** In `rank`'s order, and by name within it. */
@@ -143,12 +143,13 @@ async function titlePicture(cmd: Command, wads: WadDirectory[]): Promise<string 
 
 /**
  * The WADs in `WADS`, known IWADs first, then the free game data offered whose WADs are not there,
- * as `doom-wads` lists them. A file that is not a WAD is left out.
+ * as `doom-wads` lists them. A file that is not a WAD, and a WAD of a game other than Doom's
+ * (`OTHER_GAMES`), which this engine cannot play, are left out.
  */
 export async function findWads(cmd: Command): Promise<Game[]> {
   // No folder yet is no WADs yet: a fetch or a drop makes it.
   const children = await cmd.sys.vfs.children(cmd.access, WADS).catch(() => []);
-  const names = children.filter((child) => child.node.type === 'file' && /\.wad$/i.test(child.name)).map((child) => child.name);
+  const names = children.filter((child) => child.node.type === 'file' && /\.wad$/i.test(child.name) && !OTHER_GAMES[child.name.toLowerCase()]).map((child) => child.name);
   const read = await Promise.all(names.map(async (name) => {
     const path = `${WADS}/${name}`;
     const [node, directory] = await Promise.all([
@@ -158,16 +159,15 @@ export async function findWads(cmd: Command): Promise<Game[]> {
     return directory && { name, size: node.attrs.size ?? 0, directory };
   }));
   const wads = read.filter((wad) => wad !== undefined);
-  const iwads = wads.filter((wad) => wad.directory.kind === 'IWAD' && !OTHER_GAMES[wad.name.toLowerCase()]);
+  const iwads = wads.filter((wad) => wad.directory.kind === 'IWAD');
   const installed = await Promise.all(wads.map(async ({ name, size, directory }): Promise<Wad> => {
-    const otherGame = OTHER_GAMES[name.toLowerCase()];
     const iwad = directory.kind === 'PWAD' ? iwadFor(directory, iwads.map((each) => each.name)) : undefined;
     // What Doom shows: the IWAD's lumps, and the PWAD's over them.
     const under = iwads.find((each) => each.name === iwad)?.directory;
     const cover = await titlePicture(cmd, under ? [under, directory] : [directory]).catch(() => undefined);
-    const title = otherGame ?? known(name)?.title ?? name;
+    const title = known(name)?.title ?? name;
     const played = directory.kind === 'PWAD' ? iwad ? `on ${known(iwad)?.title ?? iwad}` : 'no IWAD here for it' : undefined;
-    const detail = otherGame ? `${name} · not playable here` : [title === name ? undefined : name, sizeText(size), played].filter(Boolean).join(' · ');
+    const detail = [title === name ? undefined : name, sizeText(size), played].filter(Boolean).join(' · ');
     return {
       id: name,
       title,
@@ -178,7 +178,6 @@ export async function findWads(cmd: Command): Promise<Game[]> {
       ...(cover ? { cover } : {}),
       kind: directory.kind,
       ...(iwad ? { iwad } : {}),
-      ...(otherGame ? { otherGame } : {}),
     };
   }));
   const offered = OFFERS.flatMap((offer) =>

@@ -20,8 +20,6 @@ export type Wad = {
   kind: 'IWAD' | 'PWAD';
   /** A PWAD's IWAD, the one in the folder it is played with; none when there is none for it here. */
   iwad?: string;
-  /** The game it is when that is not Doom, which this engine cannot play: Heretic, Hexen, Strife. */
-  otherGame?: string;
 };
 
 /** A WAD of the free game data `doom-fetch` fetches, while it is not in the folder. */
