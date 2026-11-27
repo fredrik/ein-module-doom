@@ -124,7 +124,7 @@ const OTHER_GAMES: Record<string, string> = {
   'voices.wad': 'Strife voices',
 };
 
-/** Hexen's expansion, Deathkings of the Dark Citadel, a PWAD for the full Hexen. */
+/** Hexen's expansion, Deathkings of the Dark Citadel, played over the full Hexen as a PWAD is, whatever its header says: some releases have it an IWAD. */
 const HEXDD = { name: 'hexdd.wad', title: 'Hexen: Deathkings of the Dark Citadel' };
 
 const known = (name: string) => IWADS.find((iwad) => iwad.name === name.toLowerCase());
@@ -264,18 +264,24 @@ export async function findWads(cmd: Command): Promise<Game[]> {
     return directory && { name, size: node.attrs.size ?? 0, directory };
   }));
   const wads = read.filter((wad) => wad !== undefined);
-  const iwads = wads.filter((wad) => wad.directory.kind === 'IWAD').map((wad) => ({ ...wad, engine: engineOf(wad.name, wad.directory), demo: hexenDemo(wad.name, wad.directory) }));
+  const kindOf = (name: string, directory: WadDirectory) => name.toLowerCase() === HEXDD.name ? 'PWAD' : directory.kind;
+  const iwads = wads.filter((wad) => kindOf(wad.name, wad.directory) === 'IWAD').map((wad) => ({
+    ...wad,
+    engine: engineOf(wad.name, wad.directory),
+    demo: hexenDemo(wad.name, wad.directory),
+  }));
   const installed = await Promise.all(wads.map(async ({ name, size, directory }): Promise<Wad> => {
-    const iwad = directory.kind === 'PWAD' ? iwadFor(name, directory, iwads) : undefined;
+    const kind = kindOf(name, directory);
+    const iwad = kind === 'PWAD' ? iwadFor(name, directory, iwads) : undefined;
     // What the game shows: the IWAD's lumps, and the PWAD's over them.
     const under = iwads.find((each) => each.name === iwad);
-    const engine = under?.engine ?? (directory.kind === 'IWAD' ? engineOf(name, directory) : name.toLowerCase() === HEXDD.name ? 'hexen' : 'doom');
+    const engine = under?.engine ?? (kind === 'IWAD' ? engineOf(name, directory) : name.toLowerCase() === HEXDD.name ? 'hexen' : 'doom');
     const cover = await titlePicture(cmd, under ? [under.directory, directory] : [directory]).catch(() => undefined);
     const naming = hexenDemo(name, directory) ? HEXEN_DEMO : name.toLowerCase() === HEXDD.name ? HEXDD : known(name);
     const title = naming?.title ?? name;
     const description = naming && 'description' in naming ? naming.description : undefined;
     const iwadTitle = (wad: string) => wad.toLowerCase() === 'hexen.wad' ? 'Hexen' : known(wad)?.title ?? wad;
-    const played = directory.kind === 'PWAD' ? iwad ? `on ${iwadTitle(iwad)}` : 'no IWAD here for it' : undefined;
+    const played = kind === 'PWAD' ? iwad ? `on ${iwadTitle(iwad)}` : 'no IWAD here for it' : undefined;
     const detail = [title === name ? undefined : name, sizeText(size), played].filter(Boolean).join(' · ');
     return {
       id: name,
@@ -286,7 +292,7 @@ export async function findWads(cmd: Command): Promise<Game[]> {
       ...(description ? { description } : {}),
       size,
       ...(cover ? { cover } : {}),
-      kind: directory.kind,
+      kind,
       engine,
       ...(iwad ? { iwad } : {}),
     };
