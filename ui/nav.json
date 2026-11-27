@@ -1,8 +1,0 @@
-{
-  "sections": [
-    { "id": "games", "label": "Games", "order": 35 }
-  ],
-  "sidebar": [
-    { "id": "doom.page", "section": "games", "label": "Doom", "icon": "skull", "to": "/doom", "order": 10, "signedIn": true }
-  ]
-}

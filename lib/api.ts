@@ -1,11 +1,39 @@
-/** A `.wad` in the WAD folder, as `doom-wads` answers it and the page lists it. */
+/**
+ * A `.wad` in the WAD folder, as `doom-wads` answers it: what the Games page reads of it (its
+ * `GameEntry`), and what the adapter needs to start it: the IWAD a PWAD is played with.
+ */
 export type Wad = {
-  /** The file's name, which is also how the page and a card remember it. */
-  name: string;
-  /** What the list calls it: the game's title for a known IWAD, else the file's name. */
+  /** The file's name, which is also how a game's page and a card remember it. */
+  id: string;
+  /** What the Games page calls it: the game's title for a known IWAD, else the file's name. */
   title: string;
+  state: 'installed';
+  /** The file. */
+  path: string;
+  /** Its file's name and size, and what it is played with, as the Games page shows them under its title. */
+  detail: string;
   /** Bytes. */
   size: number;
+  /** Its title screen, the `TITLEPIC` Doom shows when it is played, as a PNG `data:` URL; none when there is none to show. */
+  cover?: string;
+  /** Whether it is a whole game, an IWAD, or adds to one, a PWAD. */
+  kind: 'IWAD' | 'PWAD';
+  /** A PWAD's IWAD, the one in the folder it is played with; none when there is none for it here. */
+  iwad?: string;
   /** The game it is when that is not Doom, which this engine cannot play: Heretic, Hexen, Strife. */
   otherGame?: string;
 };
+
+/** A WAD of the free game data `doom-fetch` fetches, while it is not in the folder. */
+export type OfferedWad = {
+  /** The file it is fetched as, and what `doom-fetch` takes. */
+  id: string;
+  title: string;
+  state: 'offered';
+  /** What it is, and the bytes fetching it downloads. */
+  about: string;
+  download: number;
+};
+
+/** A WAD as `doom-wads` answers it: in the folder, or offered to fetch. */
+export type Game = Wad | OfferedWad;

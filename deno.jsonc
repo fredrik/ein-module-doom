@@ -12,13 +12,20 @@
     "@ein/ui/lib": "../../src/builtin/ui/src/client/lib/mod.ts",
     "@ein/ui/signals": "../../src/builtin/ui/src/client/signals/mod.ts",
     "@ein/ui/theme": "../../src/builtin/ui/src/client/theme/mod.ts",
+    "@games/adapter": "../games/ui/adapter.ts",
+    "@games/api": "../games/lib/api.ts",
+    "@games/card": "../games/ui/card.tsx",
+    "@games/host": "../games/lib/host.ts",
+    "@games/net": "../games/lib/net.ts",
+    "@games/page": "../games/ui/page.tsx",
+    "@games/png": "../games/lib/png.ts",
     "@hello-pangea/dnd": "npm:@hello-pangea/dnd@^18.0.1",
-    "@mantine/core": "npm:@mantine/core@9.6.2",
-    "@mantine/dates": "npm:@mantine/dates@9.6.2",
-    "@mantine/hooks": "npm:@mantine/hooks@9.6.2",
-    "@preact/signals-react": "npm:@preact/signals-react@^3.6.1",
-    "react": "npm:react@^19.2.3",
-    "react-dom": "npm:react-dom@^19.2.3",
-    "react-router-dom": "npm:react-router-dom@^7.12.0"
+    "@mantine/core": "npm:@mantine/core@9.8.2",
+    "@mantine/dates": "npm:@mantine/dates@9.8.2",
+    "@mantine/hooks": "npm:@mantine/hooks@9.8.2",
+    "@preact/signals-react": "npm:@preact/signals-react@^3.12.0",
+    "react": "npm:react@^19.3.1",
+    "react-dom": "npm:react-dom@^19.3.1",
+    "react-router-dom": "npm:react-router-dom@^7.18.6"
   }
 }

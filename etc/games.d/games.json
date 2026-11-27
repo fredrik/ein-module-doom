@@ -1,0 +1,12 @@
+{
+  "title": "Doom",
+  "icon": "skull",
+  "route": "/games/doom",
+  "list": "doom-wads",
+  "fetch": "doom-fetch",
+  "folder": "/groups/users/doom",
+  "drops": [
+    { "place": "module", "label": "a Doom IWAD, a whole game", "name": "\\.wad$", "magic": [{ "at": 0, "text": "IWAD" }] },
+    { "place": "module", "label": "a Doom PWAD, levels for a game", "name": "\\.wad$", "magic": [{ "at": 0, "text": "PWAD" }] }
+  ]
+}

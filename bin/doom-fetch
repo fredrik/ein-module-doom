@@ -1,18 +1,19 @@
 #!bash
-# doom-fetch — fetches the free game data the Doom page offers into its WAD folder, when someone
-# chooses Fetch there: Freedoom (https://freedoom.github.io), whose Phase 1 plays as Doom and Phase 2
-# as Doom II. Its release's zip is fetched, checked against its SHA-256, and its two WADs unpacked
-# into the folder the page lists; a WAD already there under the same name is left as it is. It runs
-# as whoever runs it, which has to be the administrator: EiN lets only the administrator fetch URLs.
-arg --desc "Fetch the free game data the Doom page offers into its WAD folder"
+# doom-fetch — fetches the free game data offered on the Games page into Doom's WAD folder, when
+# someone chooses Fetch there: Freedoom (https://freedoom.github.io), whose Phase 1 plays as Doom and
+# Phase 2 as Doom II. Either WAD fetches its release's zip, which has both: it is checked against its
+# SHA-256, and its two WADs unpacked into the folder doom-wads lists; a WAD already there under the
+# same name is left as it is. It runs as whoever runs it, which has to be the administrator: EiN
+# lets only the administrator fetch URLs.
+arg --desc "Fetch the free game data offered on the Games page into Doom's WAD folder"
 arg --effect write
-arg '<game>' string "freedoom (Freedoom: Phase 1 and Phase 2)"
-arg --example "doom-fetch freedoom"
+arg '<game>' string "freedoom1.wad or freedoom2.wad (either fetches Freedoom: Phase 1 and Phase 2)"
+arg --example "doom-fetch freedoom1.wad"
 arg --returns "nothing; the WADs are in /groups/users/doom."
 arg --export
 
-if [ "$GAME" != freedoom ]; then
-  echo "doom-fetch: $GAME is not a game it fetches: freedoom" >&2
+if [ "$GAME" != freedoom1.wad ] && [ "$GAME" != freedoom2.wad ]; then
+  echo "doom-fetch: $GAME is not a WAD it fetches: freedoom1.wad, freedoom2.wad" >&2
   exit 2
 fi
 release=0.13.0

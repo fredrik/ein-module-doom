@@ -1,30 +1,30 @@
-import type { Wad } from './api.ts';
+import type { Command, NodeAttrs } from '@ein/client';
+import type { Game, OfferedWad, Wad } from './api.ts';
+import { titlePng } from './titlepic.ts';
 
 /**
  * Where the game data is: a folder in the household's shared home, so everyone signed in plays
- * the same WADs and may add to them. The game data the page offers (`OFFERS`) is fetched here by
- * `doom-fetch`, and what is dropped on the page is uploaded here.
+ * the same WADs and may add to them. The game data offered (`OFFERS`) is fetched here by
+ * `doom-fetch`, and what is dropped on the Games page is uploaded here.
  */
 export const WADS = '/groups/users/doom';
 
-/** Free game data the page offers to fetch with `doom-fetch`, while one of its WADs is not here. */
-export type Offer = { name: string; title: string; about: string; wads: string[]; download: number };
+/** Free game data `doom-fetch` fetches, offered while one of its WADs is not here. */
+type Offer = { about: string; wads: string[]; download: number };
 
-export const OFFERS: Offer[] = [
+const OFFERS: Offer[] = [
   {
-    name: 'freedoom',
-    title: 'Freedoom',
-    about: "Free game data for Doom's engine: Phase 1 plays as Doom, Phase 2 as Doom II.",
+    about: "Free game data for Doom's engine: Phase 1 plays as Doom, Phase 2 as Doom II. Fetching one fetches both.",
     wads: ['freedoom1.wad', 'freedoom2.wad'],
     download: 24_143_781,
   },
 ];
 
 /**
- * The IWADs the page knows by name, with their titles, in the order they came out, which is the
- * list's, and the order an IWAD for a PWAD is looked for in.
+ * The IWADs known by name, with their titles, in the order they came out, which is the list's, and
+ * the order an IWAD for a PWAD is looked for in.
  */
-export const IWADS: { name: string; title: string; maps: 'episodes' | 'levels' }[] = [
+const IWADS: { name: string; title: string; maps: 'episodes' | 'levels' }[] = [
   { name: 'doom1.wad', title: 'Doom (shareware)', maps: 'episodes' },
   { name: 'doom.wad', title: 'Doom', maps: 'episodes' },
   { name: 'doom2.wad', title: 'Doom II', maps: 'levels' },
@@ -56,12 +56,139 @@ const rank = (name: string) => {
   return at !== -1 ? at : OTHER_GAMES[name.toLowerCase()] ? IWADS.length + 1 : IWADS.length;
 };
 
-/** The file `name` of `size` bytes as a `Wad`, or undefined when it is no `.wad`. */
-export function wadOf(name: string, size: number): Wad | undefined {
-  if (!/\.wad$/i.test(name)) return undefined;
-  const other = OTHER_GAMES[name.toLowerCase()];
-  return { name, title: other ?? known(name)?.title ?? name, size, ...(other ? { otherGame: other } : {}) };
+/** In `rank`'s order, and by name within it. */
+const byRank = (a: Wad, b: Wad): number => rank(a.id) - rank(b.id) || a.id.localeCompare(b.id);
+
+/** `bytes` as a person reads a size: `28 MB`. */
+const sizeText = (bytes: number): string =>
+  bytes >= 1e9 ? `${(bytes / 1e9).toFixed(1)} GB` : bytes >= 1e6 ? `${Math.round(bytes / 1e6)} MB` : `${Math.max(1, Math.round(bytes / 1e3))} kB`;
+
+/** Where a lump's bytes are in its WAD. */
+type Lump = { at: number; size: number };
+
+/** A WAD's header and directory: an IWAD is a whole game, a PWAD adds to one; its lumps by name, the last of a name the one Doom uses. */
+type WadDirectory = { path: string; kind: 'IWAD' | 'PWAD'; lumps: Map<string, Lump> };
+
+/** `length` bytes of the file at `path` from `at` on, fewer when it ends sooner. */
+async function readRange(cmd: Command, path: string, at: number, length: number): Promise<Uint8Array> {
+  const handle = await cmd.sys.vfs.open(cmd.access, path, { mode: 'r' });
+  try {
+    // 0 is SEEK_SET: from the start of the file.
+    await handle.seek(at, 0);
+    const bytes = new Uint8Array(length);
+    let filled = 0;
+    while (filled < length) {
+      const chunk = await handle.read(length - filled);
+      if (chunk.length === 0) break;
+      bytes.set(chunk, filled);
+      filled += chunk.length;
+    }
+    return bytes.subarray(0, filled);
+  } finally {
+    await handle.close();
+  }
 }
 
-/** In `rank`'s order, and by name within it. */
-export const byRank = (a: Wad, b: Wad): number => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name);
+/** The header and directory of the WAD at `path`, reading only those; undefined when it is not a WAD. */
+async function readDirectory(cmd: Command, path: string): Promise<WadDirectory | undefined> {
+  const header = await readRange(cmd, path, 0, 12);
+  const magic = String.fromCharCode(...header.subarray(0, 4));
+  if (header.length < 12 || (magic !== 'IWAD' && magic !== 'PWAD')) return undefined;
+  const view = new DataView(header.buffer, header.byteOffset, header.byteLength);
+  const count = view.getInt32(4, true);
+  const offset = view.getInt32(8, true);
+  if (count < 0 || offset < 12) return undefined;
+  const directory = await readRange(cmd, path, offset, count * 16);
+  if (directory.length < count * 16) return undefined;
+  const entries = new DataView(directory.buffer, directory.byteOffset, directory.byteLength);
+  const lumps = new Map<string, Lump>();
+  for (let i = 0; i < count; i++) {
+    const name = String.fromCharCode(...directory.subarray(i * 16 + 8, i * 16 + 16)).replace(/\0.*$/s, '').toUpperCase();
+    lumps.set(name, { at: entries.getInt32(i * 16, true), size: entries.getInt32(i * 16 + 4, true) });
+  }
+  return { path, kind: magic, lumps };
+}
+
+/**
+ * The IWAD a PWAD is played with, out of the IWADs `here`: one with the same kind of maps, `MAP01`
+ * for Doom II's levels or `E1M1` for Doom's episodes, in `IWADS`' order. The shareware IWAD is
+ * never one, since Doom refuses to add a PWAD to it.
+ */
+function iwadFor(pwad: WadDirectory, here: string[]): string | undefined {
+  const lumps = [...pwad.lumps.keys()];
+  const levels = lumps.some((lump) => /^MAP\d\d$/.test(lump));
+  const episodes = lumps.some((lump) => /^E\dM\d$/.test(lump));
+  const fits = IWADS.filter((iwad) => iwad.name !== 'doom1.wad' && (levels === episodes || iwad.maps === (levels ? 'levels' : 'episodes')));
+  for (const iwad of fits) {
+    const found = here.find((name) => name.toLowerCase() === iwad.name);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+/**
+ * A WAD's title screen as Doom shows it (`titlePng`), out of `wads`, the WADs it is played with, an
+ * IWAD and a PWAD over it, in the order Doom loads them: the last that has a lump is the one Doom
+ * uses, so a PWAD without a title screen or a palette of its own shows its IWAD's. Only the two
+ * lumps are read; undefined when there is no title screen or no palette.
+ */
+async function titlePicture(cmd: Command, wads: WadDirectory[]): Promise<string | undefined> {
+  const find = (name: string) => wads.map((wad) => wad.lumps.has(name) ? { path: wad.path, ...wad.lumps.get(name)! } : undefined).filter((lump) => lump !== undefined).at(-1);
+  const title = find('TITLEPIC');
+  const palette = find('PLAYPAL');
+  if (!title || !palette) return undefined;
+  const [picture, colours] = await Promise.all([readRange(cmd, title.path, title.at, title.size), readRange(cmd, palette.path, palette.at, 768)]);
+  return await titlePng(picture, colours);
+}
+
+/**
+ * The WADs in `WADS`, known IWADs first, then the free game data offered whose WADs are not there,
+ * as `doom-wads` lists them. A file that is not a WAD is left out.
+ */
+export async function findWads(cmd: Command): Promise<Game[]> {
+  // No folder yet is no WADs yet: a fetch or a drop makes it.
+  const children = await cmd.sys.vfs.children(cmd.access, WADS).catch(() => []);
+  const names = children.filter((child) => child.node.type === 'file' && /\.wad$/i.test(child.name)).map((child) => child.name);
+  const read = await Promise.all(names.map(async (name) => {
+    const path = `${WADS}/${name}`;
+    const [node, directory] = await Promise.all([
+      cmd.sys.vfs.get<NodeAttrs & { size?: number }>(cmd.access, path),
+      readDirectory(cmd, path).catch(() => undefined),
+    ]);
+    return directory && { name, size: node.attrs.size ?? 0, directory };
+  }));
+  const wads = read.filter((wad) => wad !== undefined);
+  const iwads = wads.filter((wad) => wad.directory.kind === 'IWAD' && !OTHER_GAMES[wad.name.toLowerCase()]);
+  const installed = await Promise.all(wads.map(async ({ name, size, directory }): Promise<Wad> => {
+    const otherGame = OTHER_GAMES[name.toLowerCase()];
+    const iwad = directory.kind === 'PWAD' ? iwadFor(directory, iwads.map((each) => each.name)) : undefined;
+    // What Doom shows: the IWAD's lumps, and the PWAD's over them.
+    const under = iwads.find((each) => each.name === iwad)?.directory;
+    const cover = await titlePicture(cmd, under ? [under, directory] : [directory]).catch(() => undefined);
+    const title = otherGame ?? known(name)?.title ?? name;
+    const played = directory.kind === 'PWAD' ? iwad ? `on ${known(iwad)?.title ?? iwad}` : 'no IWAD here for it' : undefined;
+    const detail = otherGame ? `${name} · not playable here` : [title === name ? undefined : name, sizeText(size), played].filter(Boolean).join(' · ');
+    return {
+      id: name,
+      title,
+      state: 'installed',
+      path: `${WADS}/${name}`,
+      detail,
+      size,
+      ...(cover ? { cover } : {}),
+      kind: directory.kind,
+      ...(iwad ? { iwad } : {}),
+      ...(otherGame ? { otherGame } : {}),
+    };
+  }));
+  const offered = OFFERS.flatMap((offer) =>
+    offer.wads.filter((wad) => !names.includes(wad)).map((wad): OfferedWad => ({
+      id: wad,
+      title: known(wad)?.title ?? wad,
+      state: 'offered',
+      about: offer.about,
+      download: offer.download,
+    }))
+  );
+  return [...installed.sort(byRank), ...offered];
+}
