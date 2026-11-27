@@ -6,15 +6,17 @@ WADs, and the games module the page each is played on, the saves, the sound and 
 
 The engine is [doomgeneric](https://github.com/ozkl/doomgeneric) built to WebAssembly with
 Emscripten, single-threaded, with a platform layer of its own (`engine/doomgeneric_ein.c`) and no
-SDL. Its adapter (`ui/adapter.ts`) loads it at runtime from the module's `assets/` directory and
-hands it to the games module's page, which drives it from `requestAnimationFrame` and draws its 320
-by 200 frames on a canvas, shown at 4:3.
+SDL. It runs in the module's Web Worker, on the games module's kit for an engine in a worker, not on
+the page: the worker loads it at runtime from the module's `assets/` directory and reads the WADs
+from EiN a piece at a time as Doom asks for them, so a level is downloaded as it is played. The
+games module's page asks the worker for a frame each time it draws, and shows Doom's 320 by 200
+frames at 4:3.
 
 It is not one of EiN's own modules and has nothing to do with a family's archive.
 
 ## Install
 
-It needs EiN's games module (`games`, 0.1 or later). As an administrator, open **Settings →
+It needs EiN's games module (`games`, 0.1.1 or later). As an administrator, open **Settings →
 Modules**, choose **Install**, and give `https://github.com/fredrik/ein-module-doom` under **From a
 repository**.
 
@@ -45,8 +47,8 @@ it. Each of the six slots is a file, `doomsav0.dsg` to `doomsav5.dsg`, as Chocol
 
 Doom's settings are kept beside them, for each WAD: `default.cfg`, with the volumes, the screen
 size, messages and the keys bound, and `doomgenericdoom.cfg`, with Chocolate Doom's further ones.
-They are written when you quit the game, go to another page of EiN's or close the tab, and read when
-the game starts, all but the sound's sample rate, which is the browser's.
+They are written when you close Doom's menu, quit the game, go to another page of EiN's or close the
+tab, and read when the game starts, all but the sound's sample rate, which is the browser's.
 
 Without an account, saves and settings last only as long as the page.
 
@@ -82,11 +84,12 @@ fetched; `games-list` lists them with every other game module's games.
 
 ## Sound
 
-The sound effects play through the browser's Web Audio, at the volume and side Doom gives each. The
-music is Doom's own: its MUS tracks played on an emulated OPL3, the FM chip of the Sound Blaster and
-AdLib cards, by [Chocolate Doom](https://www.chocolate-doom.org)'s OPL music code and the
-[Nuked OPL3](https://github.com/nukeykt/Nuked-OPL3) emulator. Doom's **Options → Sound Volume**
-sets both.
+The sound effects are mixed in the engine, each at the volume and side Doom gives it, over the
+music, and played through the browser's Web Audio. The music is Doom's own: its MUS tracks played
+on an emulated OPL3, the FM chip of the Sound Blaster and AdLib cards, by
+[Chocolate Doom](https://www.chocolate-doom.org)'s OPL music code and the
+[Nuked OPL3](https://github.com/nukeykt/Nuked-OPL3) emulator. Doom's **Options → Sound Volume** sets
+both.
 
 ## Not yet
 
@@ -96,21 +99,22 @@ No mouse, no starting on a map, and no playing together.
 
 | Path                                 | What it is for                                                                                                                                            |
 | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mod.json`                           | The manifest: the games module it needs, and the routes of a WAD's page and the dashboard card.                                                           |
+| `mod.json`                           | The manifest: the games module it needs, the engine's worker, and the routes of a WAD's page and the dashboard card.                                      |
 | `etc/games.d/games.json`             | What the games module knows of the module: its title, icon and route, its list and fetch commands, its WAD folder, and the WADs it takes when dropped.    |
 | `ui/pages/game.tsx`                  | A WAD's page, `/games/doom/<WAD>`: the games module's page for a game, with the module's adapter.                                                         |
 | `ui/cards/demo.tsx`                  | The dashboard card, offered in `etc/dashboard.d/cards.json`: the games module's demo card, a game running its demos.                                      |
 | `ui/adapter.ts`                      | The adapter the games module plays the WADs with: lists them, starts one, maps the keys, and names the saves and settings kept.                           |
-| `ui/doom/engine.ts`                  | Loads the glue, the wasm and the WADs, wraps the engine's exports, and hands it the player's saves and settings and takes them back.                      |
-| `ui/doom/sound.ts`                   | The sound effects on the games module's Web Audio; the music is pulled from the engine as its sound.                                                      |
+| `ui/doom/engine.ts`                  | Starts a WAD in the engine's worker: the build, Doom's command line, the WADs to read from EiN, the player's saves and settings, the keys.                |
+| `ui/doom/engine-worker.ts`           | The engine's worker: loads the glue and the wasm, starts Doom, and answers each frame with its picture and sound, and the saves and settings Doom writes. |
+| `ui/doom/start.ts`                   | What the page and the worker share: what the engine is started with, and where the player's files are in Doom's file system.                              |
 | `ui/doom/keys.ts`                    | Browser key codes to Doom's.                                                                                                                              |
 | `bin/doom-wads`                      | Lists the WADs with their titles and title screens, and Freedoom while it is not fetched, for the Games page, a WAD's page and the card's choice of game. |
 | `lib/wads.ts`, `lib/api.ts`          | Where the WADs are, the games known by name, the IWAD a PWAD is played with, the game data offered, and the shape `doom-wads` answers in.                 |
 | `lib/titlepic.ts`                    | Draws a WAD's title screen out of its `TITLEPIC` and palette, as a PNG.                                                                                   |
 | `bin/doom-fetch`                     | Fetches Freedoom into the WAD folder when Fetch is chosen, checked against its release's SHA-256.                                                         |
-| `engine/doomgeneric_ein.c`           | doomgeneric's platform layer for the page.                                                                                                                |
-| `engine/ein_sound.c`                 | The sound module: hands each effect's samples to the page once, then plays them on its channels.                                                          |
-| `engine/opl_ein.c`                   | Chocolate Doom's OPL library on Nuked OPL3, rendering music when the page asks for samples.                                                               |
+| `engine/doomgeneric_ein.c`           | doomgeneric's platform layer for the worker.                                                                                                              |
+| `engine/ein_sound.c`                 | The sound module: mixes the effects on their channels over the music, as the worker asks for samples.                                                     |
+| `engine/opl_ein.c`                   | Chocolate Doom's OPL library on Nuked OPL3, rendering the music under the effects.                                                                        |
 | `engine/ein_chocolate.h`             | What Chocolate Doom's music code expects of its own headers that doomgeneric's lack.                                                                      |
 | `engine/Containerfile`               | The build: pinned emsdk image, doomgeneric commit and Chocolate Doom release.                                                                             |
 | `engine/nonblocking-wipe.patch`      | Runs the screen melt a frame at a time instead of in a loop that froze the page for a second.                                                             |
@@ -133,7 +137,8 @@ source of the committed `assets/doom.wasm` is doomgeneric at the commit `engine/
 pins, with `engine/nonblocking-wipe.patch`, `engine/quit.patch`, `engine/save.patch` and
 `engine/settings.patch` applied,
 Chocolate Doom's `i_oplmusic.c`, `midifile.c`, `opl3.c` and `opl_queue.c` at the release it pins,
-and the `engine/` files added.
+and the `engine/` files added. It is built for a Web Worker (`-sENVIRONMENT=worker`), as an ES module
+that runs nothing by itself (`-sINVOKE_RUN=0`) and touches no DOM: the worker starts the game.
 
 ## Developing
 
