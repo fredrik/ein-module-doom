@@ -16,7 +16,8 @@ export const adapter: GameAdapter<Game> = {
     }
     return await startDoom({ game, ...options });
   },
-  help: 'The mouse looks and fires, WASD or the arrows move, Space uses, Shift runs, Escape is the menu, Tab the map.',
+  help:
+    'The mouse looks and fires, its right button runs forward, WASD or the arrows move, Space uses (in Hexen it jumps and E uses), Shift runs, Escape is the menu, Tab the map.',
   // The player's keys on the keyboard and the mouse, which the games page shows where a keyboard
   // plays, beside the menu's and the map's keys; they change in the Keys dialog.
   keys: {

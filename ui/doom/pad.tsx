@@ -26,6 +26,12 @@ const CAPS: Record<string, { x: number; y: number; w: number }> = {
   jump: { x: 168, y: 2, w: 34 },
 };
 
+/** Hexen's caps where they differ: Space, the wide cap, jumps, and Use is a key of its own. */
+const HEXEN_CAPS: Record<string, { x: number; y: number; w: number }> = {
+  jump: { x: 66, y: 82, w: 118 },
+  use: { x: 168, y: 2, w: 34 },
+};
+
 /** What each of the game's mouse settings does, as the drawing names it. */
 const MOUSE_ACTIONS: Record<string, string> = {
   // The wheel's weapons first: Crispy also binds Run to the wheel turning up, which a turn holds for no time.
@@ -44,27 +50,25 @@ const MOUSE_ACTIONS: Record<string, string> = {
 const RESERVED = new Set(['Escape', 'F11']);
 
 /** What the mouse's button `button`, in Doom's numbering (0 the left, 1 the right, 2 the middle, 3 and 4 the wheel up and down), does: the first setting bound to it. */
-function mouseAction(
-  settings: Map<string, string> | undefined,
-  button: number,
-): string {
+function mouseAction(settings: Map<string, string> | undefined, button: number, engine: Engine): string {
   for (const [setting, action] of Object.entries(MOUSE_ACTIONS)) {
-    if (valueOf(settings, setting) === button) return action;
+    if (valueOf(settings, setting, engine) === button) return action;
   }
   return '';
 }
 
 /** A control's key cap: its key, the control's name under it, dim when no key plays it; lit while it waits for its new key. Without `onPick` it only shows its key. */
 function Cap(
-  { id, control, code, waiting, onPick }: {
+  { id, engine, control, code, waiting, onPick }: {
     id: string;
+    engine: Engine;
     control: Control;
     code: string | undefined;
     waiting: boolean;
     onPick?(): void;
   },
 ) {
-  const { x, y, w } = CAPS[id];
+  const { x, y, w } = (engine === 'hexen' ? HEXEN_CAPS[id] : undefined) ?? CAPS[id];
   const label = waiting ? '?' : code ? keyLabel(code) : '—';
   const size = label.length > 2 ? 9 : 13;
   const picks = onPick
@@ -146,17 +150,18 @@ function Name({ x, y, children }: { x: number; y: number; children: string }) {
 
 /** The mouse at `x`,`y`: what its buttons do on them, its wheel's two ways and its click under them, and that moving it looks around. */
 function Mouse(
-  { x, y, settings }: {
+  { x, y, settings, engine }: {
     x: number;
     y: number;
     settings: Map<string, string> | undefined;
+    engine: Engine;
   },
 ) {
   const w = 86;
   const h = 116;
   const mid = x + w / 2;
-  const [left, right, middle, up, down] = [0, 1, 2, 3, 4].map((button) => mouseAction(settings, button));
-  const look = valueOf(settings, 'crispy_mouselook') !== 0;
+  const [left, right, middle, up, down] = [0, 1, 2, 3, 4].map((button) => mouseAction(settings, button, engine));
+  const look = valueOf(settings, 'crispy_mouselook', engine) !== 0;
   return (
     <g data-doom-pad-mouse>
       <title>
@@ -243,7 +248,7 @@ export function DoomPad({ game, editable }: { game: Game; editable: boolean }) {
     };
   }, [waiting, engine, controls]);
 
-  const current = waiting && controlKey(settings, controls[waiting]);
+  const current = waiting && controlKey(settings, controls[waiting], engine);
   return (
     <Box
       data-doom-pad
@@ -270,13 +275,14 @@ export function DoomPad({ game, editable }: { game: Game; editable: boolean }) {
           <Cap
             key={id}
             id={id}
+            engine={engine}
             control={control}
-            code={controlKey(settings, control)?.code}
+            code={controlKey(settings, control, engine)?.code}
             waiting={waiting === id}
             onPick={editable ? () => setWaiting(id) : undefined}
           />
         ))}
-        <Mouse x={222} y={4} settings={settings} />
+        <Mouse x={222} y={4} settings={settings} engine={engine} />
       </svg>
       {editable && (
         <Group gap={8} wrap='nowrap' justify='center' style={{ minHeight: 18 }}>

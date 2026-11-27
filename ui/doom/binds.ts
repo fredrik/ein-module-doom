@@ -45,16 +45,17 @@ export const CONTROLS: Record<Engine, Record<string, Control>> = (() => {
 })();
 
 /** The settings in Crispy's file rather than the game's own; the rest are in the game's. */
-const IN_CRISPY = new Set([
+export const IN_CRISPY = new Set([
   'key_map_toggle',
   'mouseb_use',
   'mouseb_backward',
   'mouseb_prevweapon',
   'mouseb_nextweapon',
   'crispy_mouselook',
+  'crispy_uncapped',
 ]);
 
-/** Crispy Doom's own defaults for the settings the drawing shows, the same in all three games. */
+/** Crispy Doom's own defaults for the settings the drawing shows, the same in all three games (`moduleDefaults` changes some). */
 const DEFAULTS: Record<string, number> = {
   key_up: 72,
   key_alt_up: 17,
@@ -82,14 +83,29 @@ const DEFAULTS: Record<string, number> = {
 };
 
 /**
- * The settings the module plays with where the player has none of their own, over Crispy's: mouse
- * look, since the mouse is how the page plays, and frames drawn as often as the screen shows them,
- * the game's movement drawn between its 35 tics a second.
+ * The settings the module plays with where the player has none of their own, over Crispy's, with
+ * the keys and the mouse as the quake module plays Quake where the game has the same: mouse look,
+ * since the mouse is how the page plays; frames drawn as often as the screen shows them, the game's
+ * movement drawn between its 35 tics a second; the right button runs forward, as Quake's does, the
+ * middle strafes, and the wheel only changes weapons; and in Hexen, which jumps, Space jumps, as in
+ * Quake, and E uses.
  */
-export const MODULE_DEFAULTS: Record<string, number> = {
-  crispy_mouselook: 1,
-  crispy_uncapped: 1,
-};
+export function moduleDefaults(engine: Engine): Record<string, number> {
+  return {
+    crispy_mouselook: 1,
+    crispy_uncapped: 1,
+    mouseb_forward: 1,
+    mouseb_strafe: 2,
+    mouseb_speed: -1,
+    ...(engine === 'hexen' ? { key_jump: 57, key_use: 18 } : {}),
+  };
+}
+
+/** What a setting is for a player who has not set it: the module's, else Crispy's. */
+const defaultOf = (engine: Engine, name: string): number | undefined => moduleDefaults(engine)[name] ?? DEFAULTS[name];
+
+/** The mouse's settings the drawing shows. */
+const MOUSE = Object.keys(DEFAULTS).filter((name) => name.startsWith('mouseb_'));
 
 /** A settings file's lines, by setting. */
 export function settingsOf(text: string): Map<string, string> {
@@ -185,24 +201,19 @@ export function useSettings(engine: Engine): Map<string, string> | undefined {
     new Map([...settingsOf(now.main ?? ''), ...settingsOf(now.crispy ?? '')]);
 }
 
-/** A setting's number: the player's, else the module's default or Crispy's. A key from before Crispy (above 127), which the game is started without (`engine.ts`), is Crispy's. */
-export function valueOf(
-  settings: Map<string, string> | undefined,
-  name: string,
-): number | undefined {
+/** A setting's number in `engine`: the player's, else its default. A key from before Crispy (above 127), which the game is started without (`engine.ts`), is the default. */
+export function valueOf(settings: Map<string, string> | undefined, name: string, engine: Engine): number | undefined {
   const own = settings?.get(name);
-  const value = own !== undefined && /^-?\d+$/.test(own) ? Number(own) : MODULE_DEFAULTS[name] ?? DEFAULTS[name];
-  return name.startsWith('key_') && value !== undefined && value > 127 ? DEFAULTS[name] : value;
+  const value = own !== undefined && /^-?\d+$/.test(own) ? Number(own) : defaultOf(engine, name);
+  return name.startsWith('key_') && value !== undefined && value > 127 ? defaultOf(engine, name) : value;
 }
 
-/** The physical key a control is played with: the first of its settings bound to one. */
-export function controlKey(
-  settings: Map<string, string> | undefined,
-  control: Control,
-): { setting: string; code: string } | undefined {
+/** The physical key a control of `engine` is played with: the first of its settings bound to one. */
+export function controlKey(settings: Map<string, string> | undefined, control: Control, engine: Engine): { setting: string; code: string } | undefined {
   for (const setting of control.settings) {
-    const code = codeOf(valueOf(settings, setting) ?? 0);
-    if (code && valueOf(settings, setting)) return { setting, code };
+    const value = valueOf(settings, setting, engine);
+    const code = value ? codeOf(value) : undefined;
+    if (code) return { setting, code };
   }
   return undefined;
 }
@@ -225,30 +236,29 @@ export async function bindKey(
     ...settingsOf(files.get(engine)?.main ?? ''),
     ...settingsOf(files.get(engine)?.crispy ?? ''),
   ]);
-  const setting = controlKey(settings, control)?.setting ?? control.settings[0];
-  const old = valueOf(settings, setting) ?? 0;
+  const setting = controlKey(settings, control, engine)?.setting ?? control.settings[0];
+  const old = valueOf(settings, setting, engine) ?? 0;
   const changes: [string, number][] = [[setting, number]];
   for (const other of Object.values(CONTROLS[engine])) {
     if (other === control) continue;
     for (const each of other.settings) {
-      if (valueOf(settings, each) === number) changes.push([each, old]);
+      if (valueOf(settings, each, engine) === number) changes.push([each, old]);
     }
   }
   await change(engine, changes);
 }
 
-/** Back to Crispy's keys for the controls `engine`'s drawing shows. */
+/** The settings the drawing of `engine`'s keys shows, its controls' and the mouse's, which Reset sets back. */
+const shown = (engine: Engine): string[] => [...Object.values(CONTROLS[engine]).flatMap((control) => control.settings), ...MOUSE];
+
+/** Back to the default keys and mouse buttons for what `engine`'s drawing shows. */
 export async function resetKeys(engine: Engine): Promise<void> {
-  const settings = Object.values(CONTROLS[engine]).flatMap((control) => control.settings);
-  await change(engine, settings.map((setting) => [setting, DEFAULTS[setting]]));
+  await change(engine, shown(engine).map((setting) => [setting, defaultOf(engine, setting) ?? -1]));
 }
 
-/** Whether any control `engine`'s drawing shows has a key other than Crispy's. */
-export function changed(
-  settings: Map<string, string> | undefined,
-  engine: Engine,
-): boolean {
-  return Object.values(CONTROLS[engine]).some((control) => control.settings.some((setting) => valueOf(settings, setting) !== DEFAULTS[setting]));
+/** Whether anything `engine`'s drawing shows is set other than by default. */
+export function changed(settings: Map<string, string> | undefined, engine: Engine): boolean {
+  return shown(engine).some((setting) => valueOf(settings, setting, engine) !== defaultOf(engine, setting));
 }
 
 /** Set each setting of `changes`: in the game running, and in the player's settings files. */

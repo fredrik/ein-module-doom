@@ -59,10 +59,12 @@ Each WAD's card on the Games page has its title screen, read out of the WAD, and
 its file's name and size, and for a PWAD the IWAD it is played with; the known games come first, in
 the order they came out. Choose one to open its page, `/games/doom/<WAD>`, and **Play** to play it.
 
-Click the game, so it has the keyboard and the mouse. The mouse looks around, up and down too, and
-its left button fires; WASD or the arrows move, Space opens doors, Shift runs, the wheel changes
-weapons, Escape opens the game's menu and gives the mouse back, Tab shows the map. Heretic and
-Hexen also fly, look and use their artifacts from the keyboard, and Hexen jumps. While the game has
+Click the game, so it has the keyboard and the mouse. They play as the quake module plays Quake,
+where the game has the same: the mouse looks around, up and down too, its left button fires and its
+right runs forward, the wheel changes weapons; WASD or the arrows move, Ctrl fires, Shift runs, Alt
+strafes; Escape opens the game's menu and gives the mouse back. Space opens doors, Tab shows the
+map. Heretic and Hexen also fly and use their artifacts from the keyboard, and in Hexen, which
+jumps, Space jumps, as in Quake, and E opens doors. While the game has
 the focus it takes these keys before EiN does, Alt+letter included; click outside it to give them
 back.
 

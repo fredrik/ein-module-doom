@@ -2,7 +2,7 @@ import { fileUrl } from '@ein/ui/lib';
 import type { RunningGame, StartOptions, Written } from '@games/adapter';
 import { startWorkerGame } from '@games/worker';
 import type { Wad } from '../../lib/api.ts';
-import { heardKept, heardRunning, heardWritten, MODULE_DEFAULTS, settingsOf, withSetting } from './binds.ts';
+import { heardKept, heardRunning, heardWritten, IN_CRISPY, moduleDefaults, settingsOf, withSetting } from './binds.ts';
 import { scancode } from './keys.ts';
 import { type DoomInput, type DoomStart, enginePath, SAVES, SETTINGS } from './start.ts';
 
@@ -11,24 +11,17 @@ const ASSETS = '/usr/modules/doom/assets';
 
 /**
  * A settings file as the game is started with it: a key from before Crispy Doom, which kept keys
- * above 127 that Crispy reads as none, is left out, so the game binds Crispy's own; Crispy's file
- * gets the module's defaults (`MODULE_DEFAULTS`) the player has not set; and the sample rate is this
+ * above 127 that Crispy reads as none, is left out, so the game binds its default; the module's
+ * defaults (`moduleDefaults`) the player has not set are added; and the sample rate is this
  * browser's (`ein_start`), not that of the one they were written in.
  */
-function startingSettings(
-  data: Uint8Array | undefined,
-  crispy: boolean,
-): Uint8Array<ArrayBuffer> | undefined {
+function startingSettings(data: Uint8Array | undefined, defaults: [string, number][]): Uint8Array<ArrayBuffer> | undefined {
   let text = (data ? new TextDecoder().decode(data) : '')
     .split('\n')
     .filter((line) => !/^snd_samplerate\s/.test(line) && !(Number(/^key_\w+\s+(\d+)/.exec(line)?.[1]) > 127))
     .join('\n');
-  if (crispy) {
-    const own = settingsOf(text);
-    for (const [setting, value] of Object.entries(MODULE_DEFAULTS)) {
-      if (!own.has(setting)) text = withSetting(text, setting, String(value));
-    }
-  }
+  const own = settingsOf(text);
+  for (const [setting, value] of defaults) if (!own.has(setting)) text = withSetting(text, setting, String(value));
   return text ? new TextEncoder().encode(text) : undefined;
 }
 
@@ -56,10 +49,11 @@ export async function startDoom(
   const folder = game.path.slice(0, game.path.lastIndexOf('/'));
   const wads = game.iwad ? ['-iwad', `/${game.iwad}`, '-file', `/${game.id}`] : ['-iwad', `/${game.id}`];
   const { main, crispy } = SETTINGS[engine];
+  const defaults = Object.entries(moduleDefaults(engine));
   const settings = [main, crispy].flatMap((name) => {
     const data = startingSettings(
       kept.find((file) => file.name === name)?.data,
-      name === crispy,
+      defaults.filter(([setting]) => IN_CRISPY.has(setting) === (name === crispy)),
     );
     return data ? [{ path: enginePath(name), data }] : [];
   });
