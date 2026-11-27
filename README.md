@@ -116,7 +116,7 @@ No mouse, no starting on a map, and no playing together.
 | `engine/nonblocking-wipe.patch`      | Runs the screen melt a frame at a time instead of in a loop that froze the page for a second.                                                             |
 | `engine/quit.patch`                  | Makes Quit exit, and an exit function of the wrong type one of the right type, which WebAssembly traps on.                                                |
 | `engine/save.patch`                  | Tells the page when Doom has saved a game, so it can keep it.                                                                                             |
-| `engine/settings.patch`              | Puts back Chocolate Doom's reading and writing of the settings files, which doomgeneric had left out.                                                     |
+| `engine/settings.patch`              | Puts back Chocolate Doom's reading and writing of the settings files, keys above 127 included.                                                            |
 | `assets/doom.js`, `assets/doom.wasm` | The built engine, committed, since a module is installed as its repository stands. `assets/doom-build.txt` says what built them.                          |
 | `scripts/build-engine.sh`            | Rebuilds `assets/doom.js` and `assets/doom.wasm`.                                                                                                         |
 | `test/smoke.mjs`                     | Signs in with headless Chrome, plays a little, saves screenshots.                                                                                         |
