@@ -1,7 +1,7 @@
-# Builds Doom (doomgeneric) to WebAssembly for the module's engine worker: assets/doom.js and
-# assets/doom.wasm, single-threaded, with no SDL, no DOM and no main loop (engine/doomgeneric_ein.c).
-# The sound effects are mixed in the engine (engine/ein_sound.c) over the music, Chocolate Doom's OPL
-# music on the Nuked OPL3 emulator (engine/opl_ein.c), rendered as the worker asks for it.
+# Builds Crispy Doom's Doom, Heretic and Hexen to WebAssembly for the module's engine worker:
+# assets/<game>.js and assets/<game>.wasm, single-threaded, with no SDL, no DOM and no main loop
+# (build.sh, ein_main.c, ein_video.c). The sound effects are mixed in the engine (ein_sound.c) over
+# Crispy's OPL music on the Nuked OPL3 emulator (opl_ein.c), rendered as the worker asks for it.
 #
 #   docker buildx build --file engine/Containerfile --output type=local,dest=assets engine
 #
@@ -11,73 +11,34 @@
 # emsdk 6.0.13, the multi-platform index (linux/amd64 and linux/arm64).
 FROM docker.io/emscripten/emsdk:6.0.13@sha256:fb7864e398acfda863dfcea78b8bc8adad359fa60c6a0bbeb845931de64aa68a AS build
 
-# doomgeneric, pinned. GPL-2.0-or-later, like this module.
-ARG DOOMGENERIC_COMMIT=e257a09527062bfb986b6e5e0780839b6cbd5b71
-RUN git init -q /src \
-  && git -C /src fetch -q --depth 1 https://github.com/ozkl/doomgeneric.git ${DOOMGENERIC_COMMIT} \
-  && git -C /src checkout -q FETCH_HEAD
+# Crispy Doom, pinned at its release 7.2. GPL-2.0-or-later, like this module; opl3.c is
+# LGPL-2.1-or-later.
+ARG CRISPY_DOOM_COMMIT=fdeabe4c23a833534b70aa84a22f1685aae7125d
+RUN git init -q /src/crispy \
+  && git -C /src/crispy fetch -q --depth 1 https://github.com/fabiangreffrath/crispy-doom.git ${CRISPY_DOOM_COMMIT} \
+  && git -C /src/crispy checkout -q FETCH_HEAD
 
-# The screen wipe ran as a loop of its own, which froze the page for the second it took.
-COPY nonblocking-wipe.patch /src/
-RUN git -C /src apply /src/nonblocking-wipe.patch
+# SDL 2's headers, pinned at its release 2.32.10: the sources include them, and the few SDL calls
+# left outside video, sound and the joystick are this build's own (ein_sdl.c). No SDL is linked.
+ARG SDL_COMMIT=5d249570393f7a37e037abf22cd6012a4cc56a71
+RUN git init -q /src/SDL \
+  && git -C /src/SDL fetch -q --depth 1 https://github.com/libsdl-org/SDL.git ${SDL_COMMIT} \
+  && git -C /src/SDL checkout -q FETCH_HEAD
 
-# Quit runs Doom's exit functions, one of which was a function of another type cast to theirs, which
-# WebAssembly traps on; and doomgeneric's I_Quit did not exit, so the game ran on after Quit.
-COPY quit.patch /src/
-RUN git -C /src apply /src/quit.patch
+# Each game's loop hands its frame to the worker rather than running forever (loop.patch); Doom
+# calls each state's action with as many arguments as it takes, which WebAssembly holds it to
+# (actions.patch).
+COPY loop.patch actions.patch /src/
+RUN git -C /src/crispy apply /src/loop.patch /src/actions.patch
 
-# Saving tells the page, which keeps the save in the player's home (ein_saved, doomgeneric_ein.c).
-COPY save.patch /src/
-RUN git -C /src apply /src/save.patch
+WORKDIR /src
+COPY config.h ein_main.c ein_video.c ein_sound.c ein_sdl.c ein_stubs.c opl_ein.c ein/
+COPY build.sh ./
 
-# doomgeneric had left out Chocolate Doom's reading and writing of the settings files, so Doom started
-# with its defaults every time; the page keeps them in the player's home. doomgeneric's own keys
-# above 127 (use, fire, the strafe keys), which have no scan code, are written as they are and so
-# read back as they are, not as no key.
-COPY settings.patch /src/
-RUN git -C /src apply /src/settings.patch
-
-# Chocolate Doom, pinned at its release 3.0.1, for the OPL music doomgeneric left out: the MIDI
-# player (i_oplmusic.c, midifile.c) and the emulator with its callback queue (opl3.c, opl_queue.c).
-# GPL-2.0-or-later; opl3.c is LGPL-2.1-or-later.
-ARG CHOCOLATE_DOOM_COMMIT=539ef367c9982c5945f8608b63d2236eaecc929a
-RUN git init -q /chocolate-doom \
-  && git -C /chocolate-doom fetch -q --depth 1 https://github.com/chocolate-doom/chocolate-doom.git ${CHOCOLATE_DOOM_COMMIT} \
-  && git -C /chocolate-doom checkout -q FETCH_HEAD \
-  && cp /chocolate-doom/src/i_oplmusic.c /chocolate-doom/src/midifile.c /chocolate-doom/src/midifile.h \
-    /chocolate-doom/opl/opl.h /chocolate-doom/opl/opl3.c /chocolate-doom/opl/opl3.h \
-    /chocolate-doom/opl/opl_queue.c /chocolate-doom/opl/opl_queue.h /src/doomgeneric/
-
-WORKDIR /src/doomgeneric
-COPY doomgeneric_ein.c ein_sound.c opl_ein.c ein_chocolate.h ./
-
-# doomgeneric's sound needs SDL_mixer's header only for its own SDL modules, which are not built.
-RUN sed -i '/#include <SDL_mixer.h>/d' i_sound.c
-
-# The engine's sources: Makefile.emscripten's list without its SDL platform, music and sound, and
-# this build's own sound in their place.
-ARG SOURCES="dummy am_map doomdef doomstat dstrings d_event d_items d_iwad d_loop d_main d_mode d_net f_finale f_wipe g_game hu_lib hu_stuff info i_cdmus i_endoom i_joystick i_scale i_sound i_system i_timer memio m_argv m_bbox m_cheat m_config m_controls m_fixed m_menu m_misc m_random p_ceilng p_doors p_enemy p_floor p_inter p_lights p_map p_maputl p_mobj p_plats p_pspr p_saveg p_setup p_sight p_spec p_switch p_telept p_tick p_user r_bsp r_data r_draw r_main r_plane r_segs r_sky r_things sha1 sounds statdump st_lib st_stuff s_sound tables v_video wi_stuff w_checksum w_file w_main w_wad z_zone w_file_stdc i_input i_video doomgeneric doomgeneric_ein mus2mid midifile opl3 opl_queue opl_ein ein_sound i_oplmusic"
-
-# Two compilers at a time keep the build's memory small beside a running EiN. Chocolate Doom's
-# files get what they expect of its own headers (ein_chocolate.h), and its music module is the one
-# doomgeneric plays music with. The glue is an ES module for a worker that runs nothing by itself:
-# the worker starts the game with ein_start. It is headed with Deno's ignore comments, so core's
-# `deno fmt` and `deno lint` pass over the generated file.
+# Two compilers at a time keep the build's memory small beside a running EiN.
 ENV EMCC_CORES=2
-RUN mkdir -p /out \
-  && emcc -O2 -DDOOMGENERIC_RESX=320 -DDOOMGENERIC_RESY=200 -DFEATURE_SOUND -w \
-    -include ein_chocolate.h -Dmusic_opl_module=DG_music_module \
-    $(for name in ${SOURCES}; do echo "${name}.c"; done) \
-    -o /out/doom.js \
-    -sMODULARIZE=1 -sEXPORT_ES6=1 -sEXPORT_NAME=createDoom \
-    -sENVIRONMENT=worker -sINVOKE_RUN=0 \
-    -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=64MB -sSTACK_SIZE=1MB \
-    -sEXPORTED_FUNCTIONS=_ein_start,_ein_tick,_ein_key,_ein_save_config,_ein_menu,_ein_screen,_ein_width,_ein_height,_ein_frames,_ein_audio_render,_malloc,_free \
-    -sEXPORTED_RUNTIME_METHODS=FS,HEAPU8,HEAP16,HEAPU32,stringToNewUTF8,UTF8ToString \
-    -sFORCE_FILESYSTEM=1 \
-  && { printf '%s\n' '// deno-fmt-ignore-file' '// deno-lint-ignore-file' '// Generated by engine/Containerfile with Emscripten. Do not edit.'; cat /out/doom.js; } > /out/doom.js.new \
-  && mv /out/doom.js.new /out/doom.js \
-  && echo "doomgeneric ${DOOMGENERIC_COMMIT} with nonblocking-wipe.patch, quit.patch, save.patch and settings.patch, Chocolate Doom ${CHOCOLATE_DOOM_COMMIT}'s OPL music, emsdk 6.0.13" > /out/doom-build.txt
+RUN sh build.sh /out \
+  && echo "Crispy Doom 7.2 (${CRISPY_DOOM_COMMIT}) with loop.patch and actions.patch, SDL ${SDL_COMMIT}'s headers, emsdk 6.0.13" > /out/doom-build.txt
 
 FROM scratch
 COPY --from=build /out/ /

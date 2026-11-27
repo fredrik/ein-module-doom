@@ -1,3 +1,6 @@
+/** Which of Crispy Doom's games a WAD is played on: Doom, Heretic or Hexen. */
+export type Engine = 'doom' | 'heretic' | 'hexen';
+
 /**
  * A `.wad` in the WAD folder, as `doom-wads` answers it: what the Games page reads of it (its
  * `GameEntry`), and what the adapter needs to start it: the IWAD a PWAD is played with.
@@ -16,10 +19,12 @@ export type Wad = {
   description?: string;
   /** Bytes. */
   size: number;
-  /** Its title screen, the `TITLEPIC` Doom shows when it is played, as a PNG `data:` URL; none when there is none to show. */
+  /** Its title screen, Doom's `TITLEPIC` or Heretic's and Hexen's `TITLE`, as a PNG `data:` URL; none when there is none to show. */
   cover?: string;
   /** Whether it is a whole game, an IWAD, or adds to one, a PWAD. */
   kind: 'IWAD' | 'PWAD';
+  /** The game it is played on: an IWAD's own, a PWAD's IWAD's. */
+  engine: Engine;
   /** A PWAD's IWAD, the one in the folder it is played with; none when there is none for it here. */
   iwad?: string;
 };

@@ -12,12 +12,14 @@
 // GNU General Public License for more details.
 //
 // DESCRIPTION:
-//	doomgeneric's sound module for the module's engine worker: the
-//	sound effects are mixed here, each on its channel at the volume
-//	and side Doom gives it, over the music, Chocolate Doom's OPL music
-//	(i_oplmusic.c) on opl_ein.c. ein_audio_render hands the worker
-//	both as interleaved 16-bit stereo at the page's sample rate,
-//	snd_samplerate.
+//	Crispy Doom's sound module for the module's engine worker: the
+//	sound effects are mixed here, each on its channel at the volume,
+//	side and pitch the game gives it, over the music, Crispy's OPL
+//	music (i_oplmusic.c) on opl_ein.c. ein_audio_render hands the
+//	worker both as interleaved 16-bit stereo at the page's sample rate,
+//	snd_samplerate. i_sound.c knows it by the name of the PC speaker's
+//	module, which the build renames to sound_ein_module (build.sh): the
+//	only module in its list once SDL_mixer's is left out.
 //
 
 #include <math.h>
@@ -29,17 +31,38 @@
 #include <emscripten.h>
 
 #include "doomtype.h"
+#include "d_mode.h"
 #include "i_sound.h"
 #include "m_misc.h"
 #include "w_wad.h"
 #include "z_zone.h"
 #include "deh_str.h"
 
-// Settings Chocolate Doom's SDL sound had, which the configuration
-// file still names: the mixer resamples as it plays.
+// Settings Crispy's SDL sound and music had, which the configuration
+// file still names: the mixer resamples as it plays, and the music is
+// the OPL's.
 int use_libsamplerate = 0;
 float libsamplerate_scale = 0.65f;
 char *timidity_cfg_path = "";
+char *music_pack_path = "";
+
+void I_InitTimidityConfig(void)
+{
+}
+
+// Music packs replace the music with recordings, which SDL_mixer
+// played: i_sound.c tries them first, and this build has none.
+static boolean NoMusicPack(void)
+{
+    return false;
+}
+
+const music_module_t music_pack_module =
+{
+    NULL,
+    0,
+    NoMusicPack,
+};
 
 // More than Doom's snd_channels can be set to.
 #define NUM_CHANNELS 16
@@ -94,7 +117,8 @@ static void GetSfxLumpName(sfxinfo_t *sfx, char *buf, size_t buf_len)
         sfx = sfx->link;
     }
 
-    // Doom's effects are the lumps named DS<name>.
+    // Doom's effects are the lumps named DS<name>; Heretic's and
+    // Hexen's are named as they are.
     if (use_sfx_prefix)
     {
         M_snprintf(buf, buf_len, "ds%s", DEH_String(sfx->name));
@@ -150,9 +174,9 @@ static const clip_t *LoadSfx(sfxinfo_t *sfxinfo)
     return clip;
 }
 
-static boolean EIN_InitSound(boolean _use_sfx_prefix)
+static boolean EIN_InitSound(GameMission_t mission)
 {
-    use_sfx_prefix = _use_sfx_prefix;
+    use_sfx_prefix = (mission == doom || mission == strife);
     return true;
 }
 
@@ -183,7 +207,7 @@ static void EIN_UpdateSoundParams(int channel, int vol, int sep)
     SetGains(&voices[channel], vol, sep);
 }
 
-static int EIN_StartSound(sfxinfo_t *sfxinfo, int channel, int vol, int sep)
+static int EIN_StartSound(sfxinfo_t *sfxinfo, int channel, int vol, int sep, int pitch)
 {
     const clip_t *clip;
     voice_t *voice;
@@ -202,6 +226,12 @@ static int EIN_StartSound(sfxinfo_t *sfxinfo, int channel, int vol, int sep)
     voice->clip = clip;
     voice->position = 0;
     voice->step = (double) clip->rate / (snd_samplerate > 0 ? snd_samplerate : 48000);
+    // A pitch above NORM_PITCH plays the effect faster, below slower,
+    // by as much as Crispy's SDL mixer shortens or lengthens it.
+    if (snd_pitchshift && pitch != NORM_PITCH && pitch > 0)
+    {
+        voice->step /= 2 - (double) pitch / NORM_PITCH;
+    }
     SetGains(voice, vol, sep);
     return channel;
 }
@@ -233,7 +263,7 @@ static snddevice_t sound_ein_devices[] =
     SNDDEVICE_AWE32,
 };
 
-sound_module_t DG_sound_module =
+const sound_module_t sound_ein_module =
 {
     sound_ein_devices,
     arrlen(sound_ein_devices),

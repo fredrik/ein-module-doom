@@ -1,0 +1,119 @@
+diff --git a/src/doom/p_mobj.c b/src/doom/p_mobj.c
+index c0b4fdad..83d5545b 100644
+--- a/src/doom/p_mobj.c
++++ b/src/doom/p_mobj.c
+@@ -80,7 +80,7 @@ P_SetMobjState
+ 	// Modified handling.
+ 	// Call action functions when the state is set
+ 	if (st->action.acp3)
+-	    st->action.acp3(mobj, NULL, NULL); // [crispy] let pspr action pointers get called from mobj states
++	    P_CallAction(st->action, mobj, NULL, NULL); // [crispy] let pspr action pointers get called from mobj states
+ 	
+ 	state = st->nextstate;
+ 
+diff --git a/src/doom/p_pspr.c b/src/doom/p_pspr.c
+index 27d7938f..c8e802cb 100644
+--- a/src/doom/p_pspr.c
++++ b/src/doom/p_pspr.c
+@@ -65,6 +65,78 @@ void A_Recoil (player_t* player)
+ }
+ 
+ 
++// [EiN] A weapon's action takes the thing, the player and the
++// sprite; a thing's action takes the thing alone. Crispy calls either
++// from either kind of state, which WebAssembly traps on when the call
++// has more arguments than the function: each is called as it is
++// defined, a thing's with the thing alone, as a native call leaves the
++// rest unread.
++void A_Light0 (mobj_t *mobj, player_t *player, pspdef_t *psp);
++void A_Light1 (mobj_t *mobj, player_t *player, pspdef_t *psp);
++void A_Light2 (mobj_t *mobj, player_t *player, pspdef_t *psp);
++void A_WeaponReady (mobj_t *mobj, player_t *player, pspdef_t *psp);
++void A_ReFire (mobj_t *mobj, player_t *player, pspdef_t *psp);
++void A_CheckReload (mobj_t *mobj, player_t *player, pspdef_t *psp);
++void A_Lower (mobj_t *mobj, player_t *player, pspdef_t *psp);
++void A_Raise (mobj_t *mobj, player_t *player, pspdef_t *psp);
++void A_GunFlash (mobj_t *mobj, player_t *player, pspdef_t *psp);
++void A_Punch (mobj_t *mobj, player_t *player, pspdef_t *psp);
++void A_Saw (mobj_t *mobj, player_t *player, pspdef_t *psp);
++void A_FireMissile (mobj_t *mobj, player_t *player, pspdef_t *psp);
++void A_FireBFG (mobj_t *mobj, player_t *player, pspdef_t *psp);
++void A_FirePlasma (mobj_t *mobj, player_t *player, pspdef_t *psp);
++void A_FirePistol (mobj_t *mobj, player_t *player, pspdef_t *psp);
++void A_FireShotgun (mobj_t *mobj, player_t *player, pspdef_t *psp);
++void A_FireShotgun2 (mobj_t *mobj, player_t *player, pspdef_t *psp);
++void A_FireCGun (mobj_t *mobj, player_t *player, pspdef_t *psp);
++void A_BFGsound (mobj_t *mobj, player_t *player, pspdef_t *psp);
++void A_OpenShotgun2 (mobj_t *mobj, player_t *player, pspdef_t *psp);
++void A_LoadShotgun2 (mobj_t *mobj, player_t *player, pspdef_t *psp);
++void A_CloseShotgun2 (mobj_t *mobj, player_t *player, pspdef_t *psp);
++void A_FireOldBFG (mobj_t *mobj, player_t *player, pspdef_t *psp);
++void A_RandomJump (mobj_t *mobj, player_t *player, pspdef_t *psp);
++
++static void (*const weapon_actions[])(mobj_t *, player_t *, pspdef_t *) =
++{
++    A_Light0,
++    A_Light1,
++    A_Light2,
++    A_WeaponReady,
++    A_ReFire,
++    A_CheckReload,
++    A_Lower,
++    A_Raise,
++    A_GunFlash,
++    A_Punch,
++    A_Saw,
++    A_FireMissile,
++    A_FireBFG,
++    A_FirePlasma,
++    A_FirePistol,
++    A_FireShotgun,
++    A_FireShotgun2,
++    A_FireCGun,
++    A_BFGsound,
++    A_OpenShotgun2,
++    A_LoadShotgun2,
++    A_CloseShotgun2,
++    A_FireOldBFG,
++    A_RandomJump,
++};
++
++void P_CallAction (actionf_t action, mobj_t *mobj, player_t *player, pspdef_t *psp)
++{
++    for (int i = 0; i < arrlen(weapon_actions); ++i)
++    {
++        if (action.acp3 == (actionf_p3) weapon_actions[i])
++        {
++            weapon_actions[i](mobj, player, psp);
++            return;
++        }
++    }
++    action.acp1(mobj);
++}
++
+ //
+ // P_SetPsprite
+ //
+@@ -106,7 +178,7 @@ P_SetPsprite
+ 	// Modified handling.
+ 	if (state->action.acp3)
+ 	{
+-	    state->action.acp3(player->mo, player, psp); // [crispy] let mobj action pointers get called from pspr states
++	    P_CallAction(state->action, player->mo, player, psp); // [crispy] let mobj action pointers get called from pspr states
+ 	    if (!psp->state)
+ 		break;
+ 	}
+diff --git a/src/doom/p_pspr.h b/src/doom/p_pspr.h
+index 376e1520..f2fa1c24 100644
+--- a/src/doom/p_pspr.h
++++ b/src/doom/p_pspr.h
+@@ -75,4 +75,9 @@ typedef struct
+ extern fixed_t bulletslope;
+ 
+ 
++// [EiN] call a state's action with as many arguments as it takes
++struct mobj_s;
++struct player_s;
++void P_CallAction (actionf_t action, struct mobj_s *mobj, struct player_s *player, pspdef_t *psp);
++
+ #endif

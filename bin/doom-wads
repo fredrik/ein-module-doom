@@ -1,5 +1,5 @@
 #!ts
-/** doom-wads — the WADs in Doom's WAD folder and the free ones offered, as the Games page and a game's page list them. */
+/** doom-wads — the WADs in Doom's WAD folder, Doom's, Heretic's and Hexen's, and the free ones offered, as the Games page and a game's page list them. */
 import type { CmdReturn, Command } from '@ein/client';
 import type { GameEntry } from '@games/api';
 import type { Game } from '@doom/api';
@@ -11,7 +11,7 @@ const doomWads = async (cmd: Command): CmdReturn => {
   else {
     for (const wad of wads) {
       if (wad.state === 'offered') await cmd.writeLn(`${wad.id}  ${wad.title}  offered, doom-fetch ${wad.id}`);
-      else await cmd.writeLn(`${wad.id}  ${wad.title}  ${wad.iwad ? `on ${wad.iwad}` : wad.kind}`);
+      else await cmd.writeLn(`${wad.id}  ${wad.title}  ${wad.engine}  ${wad.iwad ? `on ${wad.iwad}` : wad.kind}`);
     }
   }
   return 0;
@@ -20,12 +20,12 @@ const doomWads = async (cmd: Command): CmdReturn => {
 doomWads.spec = {
   name: 'doom-wads',
   effect: 'read' as const,
-  description: `List the WADs in ${WADS}, known games first, by title, in the order they came out; then the free ones doom-fetch fetches that are not there yet`,
+  description: `List the WADs in ${WADS}, Doom's, Heretic's and Hexen's, known games first, by title, in the order they came out; then the free ones doom-fetch fetches that are not there yet`,
   args: [],
   flags: [],
   examples: ['doom-wads'],
   returns:
-    'One entry per WAD. One in the folder: its id (the file\'s name), title, state installed, path, detail, size in bytes, cover (its title screen as a PNG data: URL), kind (IWAD or PWAD), and iwad (the IWAD a PWAD is played with). A WAD of a game other than Doom (Heretic, Hexen, Strife) is left out. One offered: its id, title, state offered, about and download (bytes).',
+    'One entry per WAD. One in the folder: its id (the file\'s name), title, state installed, path, detail, size in bytes, cover (its title screen as a PNG data: URL), kind (IWAD or PWAD), engine (doom, heretic or hexen: the game it is played on) and iwad (the IWAD a PWAD is played with). A WAD of Strife is left out. One offered: its id, title, state offered, about and download (bytes).',
 };
 
 export default doomWads;
