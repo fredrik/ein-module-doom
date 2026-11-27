@@ -13,12 +13,13 @@
 // GNU General Public License for more details.
 //
 // DESCRIPTION:
-//	Chocolate Doom's OPL library (opl.h) for the EiN page, on the
-//	Nuked OPL3 emulator, in place of its opl.c and opl_sdl.c: no
-//	driver to pick, no chip to detect, no audio thread. The page asks
-//	for samples with ein_music_render as it plays them, and the music's
-//	timer callbacks run in between, at the sample they are due. Since
-//	the page and the game share one thread, nothing needs a lock.
+//	Chocolate Doom's OPL library (opl.h) for the module's engine
+//	worker, on the Nuked OPL3 emulator, in place of its opl.c and
+//	opl_sdl.c: no driver to pick, no chip to detect, no audio thread.
+//	ein_audio_render (ein_sound.c) asks for samples with
+//	ein_music_render as the page plays them, and the music's timer
+//	callbacks run in between, at the sample they are due. Since the
+//	sound and the game share one thread, nothing needs a lock.
 //
 //	OPL_InitRegisters and the timing of OPL_SetCallback and
 //	ein_music_render are Chocolate Doom's opl.c and opl_sdl.c.
@@ -26,8 +27,6 @@
 
 #include <stdint.h>
 #include <stdlib.h>
-
-#include <emscripten.h>
 
 #include "opl.h"
 #include "opl3.h"
@@ -225,7 +224,6 @@ static void AdvanceTime(unsigned int nsamples)
 
 // Fill `buffer` with `frames` frames of interleaved 16-bit stereo,
 // stopping at each callback that falls due on the way.
-EMSCRIPTEN_KEEPALIVE
 void ein_music_render(int16_t *buffer, unsigned int frames)
 {
     unsigned int filled = 0;

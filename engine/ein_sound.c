@@ -12,16 +12,19 @@
 // GNU General Public License for more details.
 //
 // DESCRIPTION:
-//	doomgeneric's sound module for the EiN page: the sound effects
-//	are played by the page on Web Audio (ui/doom/sound.ts, handed to
-//	the Emscripten module as `einSound`). Each effect's samples go to
-//	the page once, the first time it is played; after that only its
-//	channel, volume and separation do. The music module is Chocolate
-//	Doom's OPL music (i_oplmusic.c) on opl_ein.c.
+//	doomgeneric's sound module for the module's engine worker: the
+//	sound effects are mixed here, each on its channel at the volume
+//	and side Doom gives it, over the music, Chocolate Doom's OPL music
+//	(i_oplmusic.c) on opl_ein.c. ein_audio_render hands the worker
+//	both as interleaved 16-bit stereo at the page's sample rate,
+//	snd_samplerate.
 //
 
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include <emscripten.h>
 
@@ -33,32 +36,55 @@
 #include "deh_str.h"
 
 // Settings Chocolate Doom's SDL sound had, which the configuration
-// file still names: there is no resampling here, the page does it.
+// file still names: the mixer resamples as it plays.
 int use_libsamplerate = 0;
 float libsamplerate_scale = 0.65f;
 char *timidity_cfg_path = "";
 
+// More than Doom's snd_channels can be set to.
+#define NUM_CHANNELS 16
+
+// An effect's samples, unsigned 8-bit, 128 the silence, at `rate`.
+typedef struct
+{
+    uint8_t *samples;
+    unsigned int length;
+    unsigned int rate;
+} clip_t;
+
+// A clip playing on a channel: where it is, in the clip's samples,
+// how far it moves on in a frame of the output, and its gain on each
+// side.
+typedef struct
+{
+    const clip_t *clip;
+    double position;
+    double step;
+    float left;
+    float right;
+} voice_t;
+
+static voice_t voices[NUM_CHANNELS];
+
 static boolean use_sfx_prefix;
 
-EM_JS(void, js_sfx_load, (int lump, const uint8_t *samples, int length, int rate), {
-    if (Module.einSound) Module.einSound.load(lump, HEAPU8.slice(samples, samples + length), rate);
-});
+// The music, ahead of the effects (opl_ein.c).
+void ein_music_render(int16_t *buffer, unsigned int frames);
 
-EM_JS(void, js_sfx_start, (int channel, int lump, int vol, int sep), {
-    if (Module.einSound) Module.einSound.start(channel, lump, vol, sep);
-});
+// Doom's volume is 0 to 127, its separation 0 (left) to 254 (right),
+// 128 the middle; the sides share the sound at equal power, as Web
+// Audio's stereo panner shares it.
+static void SetGains(voice_t *voice, int vol, int sep)
+{
+    float level = (vol < 0 ? 0 : vol > 127 ? 127 : vol) / 127.0f;
+    float pan = (sep - 128) / 127.0f;
+    float angle;
 
-EM_JS(void, js_sfx_update, (int channel, int vol, int sep), {
-    if (Module.einSound) Module.einSound.update(channel, vol, sep);
-});
-
-EM_JS(void, js_sfx_stop, (int channel), {
-    if (Module.einSound) Module.einSound.stop(channel);
-});
-
-EM_JS(int, js_sfx_playing, (int channel), {
-    return Module.einSound && Module.einSound.playing(channel) ? 1 : 0;
-});
+    pan = pan < -1 ? -1 : pan > 1 ? 1 : pan;
+    angle = (pan + 1) * (float) M_PI / 4;
+    voice->left = cosf(angle) * level;
+    voice->right = sinf(angle) * level;
+}
 
 static void GetSfxLumpName(sfxinfo_t *sfx, char *buf, size_t buf_len)
 {
@@ -79,19 +105,20 @@ static void GetSfxLumpName(sfxinfo_t *sfx, char *buf, size_t buf_len)
     }
 }
 
-// Hand an effect's samples to the page, once. A DMX sound lump is a
-// format word (3), the sample rate, the length, then that many
+// Read an effect's samples out of its lump, once. A DMX sound lump is
+// a format word (3), the sample rate, the length, then that many
 // unsigned 8-bit samples, of which DMX skipped the first and the last
 // 16; so does this, as Chocolate Doom does.
-static boolean LoadSfx(sfxinfo_t *sfxinfo)
+static const clip_t *LoadSfx(sfxinfo_t *sfxinfo)
 {
     int lumpnum = sfxinfo->lumpnum;
     const uint8_t *data;
     unsigned int lumplen, rate, length;
+    clip_t *clip;
 
     if (sfxinfo->driver_data != NULL)
     {
-        return true;
+        return sfxinfo->driver_data;
     }
 
     data = W_CacheLumpNum(lumpnum, PU_STATIC);
@@ -100,24 +127,27 @@ static boolean LoadSfx(sfxinfo_t *sfxinfo)
     if (lumplen < 8 || data[0] != 0x03 || data[1] != 0x00)
     {
         W_ReleaseLumpNum(lumpnum);
-        return false;
+        return NULL;
     }
 
     rate = (data[3] << 8) | data[2];
     length = (data[7] << 24) | (data[6] << 16) | (data[5] << 8) | data[4];
 
-    if (length > lumplen - 8 || length <= 48)
+    if (length > lumplen - 8 || length <= 48 || rate == 0)
     {
         W_ReleaseLumpNum(lumpnum);
-        return false;
+        return NULL;
     }
 
-    js_sfx_load(lumpnum, data + 8 + 16, length - 32, rate);
+    clip = malloc(sizeof(*clip));
+    clip->length = length - 32;
+    clip->samples = malloc(clip->length);
+    clip->rate = rate;
+    memcpy(clip->samples, data + 8 + 16, clip->length);
     W_ReleaseLumpNum(lumpnum);
 
-    // Anything not NULL marks it as handed over.
-    sfxinfo->driver_data = sfxinfo;
-    return true;
+    sfxinfo->driver_data = clip;
+    return clip;
 }
 
 static boolean EIN_InitSound(boolean _use_sfx_prefix)
@@ -146,28 +176,47 @@ static void EIN_UpdateSound(void)
 
 static void EIN_UpdateSoundParams(int channel, int vol, int sep)
 {
-    js_sfx_update(channel, vol, sep);
+    if (channel < 0 || channel >= NUM_CHANNELS)
+    {
+        return;
+    }
+    SetGains(&voices[channel], vol, sep);
 }
 
 static int EIN_StartSound(sfxinfo_t *sfxinfo, int channel, int vol, int sep)
 {
-    if (sfxinfo->lumpnum < 0 || !LoadSfx(sfxinfo))
+    const clip_t *clip;
+    voice_t *voice;
+
+    if (channel < 0 || channel >= NUM_CHANNELS || sfxinfo->lumpnum < 0)
+    {
+        return -1;
+    }
+    clip = LoadSfx(sfxinfo);
+    if (clip == NULL)
     {
         return -1;
     }
 
-    js_sfx_start(channel, sfxinfo->lumpnum, vol, sep);
+    voice = &voices[channel];
+    voice->clip = clip;
+    voice->position = 0;
+    voice->step = (double) clip->rate / (snd_samplerate > 0 ? snd_samplerate : 48000);
+    SetGains(voice, vol, sep);
     return channel;
 }
 
 static void EIN_StopSound(int channel)
 {
-    js_sfx_stop(channel);
+    if (channel >= 0 && channel < NUM_CHANNELS)
+    {
+        voices[channel].clip = NULL;
+    }
 }
 
 static boolean EIN_SoundIsPlaying(int channel)
 {
-    return js_sfx_playing(channel) != 0;
+    return channel >= 0 && channel < NUM_CHANNELS && voices[channel].clip != NULL;
 }
 
 static void EIN_CacheSounds(sfxinfo_t *sounds, int num_sounds)
@@ -198,3 +247,52 @@ sound_module_t DG_sound_module =
     EIN_SoundIsPlaying,
     EIN_CacheSounds,
 };
+
+// Fill `buffer` with `frames` frames of interleaved 16-bit stereo:
+// the music, and each effect playing over it, its samples between
+// two of the clip's drawn on a line between them. An effect that has
+// played to its end leaves its channel free.
+EMSCRIPTEN_KEEPALIVE
+void ein_audio_render(int16_t *buffer, unsigned int frames)
+{
+    ein_music_render(buffer, frames);
+
+    for (unsigned int i = 0; i < frames; ++i)
+    {
+        float left = buffer[i * 2];
+        float right = buffer[i * 2 + 1];
+
+        for (int channel = 0; channel < NUM_CHANNELS; ++channel)
+        {
+            voice_t *voice = &voices[channel];
+            const clip_t *clip = voice->clip;
+            unsigned int at;
+            float fraction, sample;
+
+            if (clip == NULL)
+            {
+                continue;
+            }
+            at = (unsigned int) voice->position;
+            if (at >= clip->length)
+            {
+                voice->clip = NULL;
+                continue;
+            }
+            fraction = (float) (voice->position - at);
+            sample = clip->samples[at];
+            if (at + 1 < clip->length)
+            {
+                sample += (clip->samples[at + 1] - sample) * fraction;
+            }
+            // 128 is the silence, and 128 either side the loudest.
+            sample = (sample - 128) * 256;
+            left += sample * voice->left;
+            right += sample * voice->right;
+            voice->position += voice->step;
+        }
+
+        buffer[i * 2] = (int16_t) (left < -32768 ? -32768 : left > 32767 ? 32767 : left);
+        buffer[i * 2 + 1] = (int16_t) (right < -32768 ? -32768 : right > 32767 ? 32767 : right);
+    }
+}
