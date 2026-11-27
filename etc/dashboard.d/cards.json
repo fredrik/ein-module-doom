@@ -12,7 +12,7 @@
     "params": {
       "type": "object",
       "properties": {
-        "wad": { "type": "string", "title": "Game", "x-choices": { "command": "doom-wads", "value": "name", "label": "title" } }
+        "game": { "type": "string", "title": "Game", "x-choices": { "command": "doom-wads", "value": "id", "label": "title", "where": { "state": "installed" } } }
       }
     }
   }

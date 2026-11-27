@@ -1,7 +1,7 @@
 import { fileUrl } from '@ein/ui/lib';
-import { type Save, type Settings, SETTINGS_FILES } from './saves.ts';
-import type { SfxSink, Sound } from './sound.ts';
-import { iwadFor, readWad, type Wad, WADS } from './wads.ts';
+import { type Kept, quitted, type StartOptions } from '@games/adapter';
+import type { Wad } from '../../lib/api.ts';
+import { sfxSink } from './sound.ts';
 
 /** Where the module's built engine sits in EiN's tree. */
 const ASSETS = '/usr/modules/doom/assets';
@@ -10,7 +10,7 @@ const ASSETS = '/usr/modules/doom/assets';
 type DoomModule = {
   FS: {
     writeFile(path: string, data: Uint8Array | string): void;
-    readFile(path: string): Uint8Array;
+    readFile(path: string): Uint8Array<ArrayBuffer>;
     readFile(path: string, options: { encoding: 'utf8' }): string;
     analyzePath(path: string): { exists: boolean };
     mkdir(path: string): void;
@@ -29,15 +29,13 @@ type DoomModule = {
 };
 
 /** A running game: tick it, read its frame, hand it keys. */
-export type Engine = {
-  /** What it plays: the WAD chosen, and the IWAD under it when that is a PWAD. */
-  wad: string;
-  iwad?: string;
+type Engine = {
   width: number;
   height: number;
   /**
    * Run the tics that are due; throws when the game ends: what `quitted` recognises when the player
-   * chose Quit, anything else when it failed (Doom's `I_Error`).
+   * chose Quit, which has written the settings and kept them, anything else when it failed (Doom's
+   * `I_Error`).
    */
   tick(): void;
   /** How many frames the game has drawn: a new number means a new frame to copy. */
@@ -45,21 +43,32 @@ export type Engine = {
   /** Copy the current frame into `image`, which is `width` by `height`. */
   draw(image: ImageData): void;
   key(pressed: boolean, key: number): void;
-  /** Doom's settings files as the game has them: what Quit wrote, or with `write`, written now. */
-  settings(write?: boolean): Settings[];
+  /** Write Doom's settings now, as Quit does, and keep them; nothing once the game has ended. */
+  keepSettings(): void;
 };
-
-/** Whether `error`, thrown by `tick`, is the game ending on Quit: Emscripten's `ExitStatus` for exit(0). */
-export function quitted(error: unknown): boolean {
-  const exit = error as { name?: string; status?: number } | null;
-  return exit?.name === 'ExitStatus' && exit.status === 0;
-}
 
 /**
  * Where Doom keeps its saves in its file system: doomgeneric's `.savegame/` under the working
- * directory, which is `/`, as `doomsav<slot>.dsg`.
+ * directory, which is `/`, as `doomsav<slot>.dsg`. The player keeps them in their saves folder as
+ * `doomsav<slot>.dsg`.
  */
 const SAVES = '/.savegame';
+const SAVE_FILE = /^doomsav\d\.dsg$/;
+
+/**
+ * Doom's settings files, as it writes them on Quit: `default.cfg`, its own (keys, volumes, screen
+ * size, messages), and `doomgenericdoom.cfg`, Chocolate Doom's further ones. The player keeps them
+ * in their saves folder under these names.
+ */
+const SETTINGS_FILES = ['default.cfg', 'doomgenericdoom.cfg'];
+
+/**
+ * The files the player keeps of a game, by their paths in their saves folder of it: its saves and
+ * its settings files (the adapter's `kept`). The settings are the player's whatever WAD they play,
+ * kept once in `~/.doom` (`SHARED`).
+ */
+export const KEPT = /^(doomsav\d\.dsg|default\.cfg|doomgenericdoom\.cfg)$/;
+export const SHARED = /^(default\.cfg|doomgenericdoom\.cfg)$/;
 
 /**
  * Where Doom keeps a settings file in its file system: doomgeneric joins its configuration directory,
@@ -75,67 +84,58 @@ async function fetchFile(path: string): Promise<Uint8Array> {
 }
 
 /**
- * Load the engine and `wad` and start the game; `wads` are the others there are, to find the
- * IWAD a PWAD is played with. `log` gets what Doom prints, line by line, and `sound` the game's
- * sound effects and music; without it the game is silent. `saves` are the player's saved games of
- * `wad`, which Doom's Load Game lists, and `onSave` hears each game Doom saves. `settings` are the
- * player's settings files, which Doom reads as it starts.
+ * Load the engine and `game`'s WAD, and the IWAD under it when it is a PWAD, and start the game.
+ * `log` gets what Doom prints, line by line, and `sound` the game's sound effects and music; without
+ * it the game is silent. `kept` are the player's saved games of the WAD, which Doom's Load Game
+ * lists, and their settings files, which Doom reads as it starts; `onKeep` hears each game Doom saves
+ * and its settings when it writes them.
  *
  * The glue is imported from a URL held in a variable, so core's bundler leaves it alone and the
  * browser loads it at runtime. The wasm is fetched here and handed over as bytes, so how `/file/`
  * labels a `.wasm` does not matter.
  */
-export async function startEngine({ wad, wads, sound, log, saves = [], onSave, settings = [] }: {
-  wad: Wad;
-  wads: Wad[];
-  sound?: Sound;
-  log: (line: string) => void;
-  saves?: Save[];
-  onSave?: (save: Save) => void;
-  settings?: Settings[];
-}): Promise<Engine> {
+export async function startEngine({ game, sound, log, kept, onKeep }: Pick<StartOptions<Wad>, 'game' | 'sound' | 'log' | 'kept' | 'onKeep'>): Promise<Engine> {
+  if (game.kind === 'PWAD' && !game.iwad) {
+    throw new Error(`${game.id} adds to a game, and there is no IWAD here for it: drop doom2.wad or doom.wad on the Games page, or have Freedoom fetched again`);
+  }
+  const folder = game.path.slice(0, game.path.lastIndexOf('/'));
   const glueUrl = fileUrl(`${ASSETS}/doom.js`);
-  const [glue, wasmBinary, bytes] = await Promise.all([
+  const [glue, wasmBinary, bytes, iwadBytes] = await Promise.all([
     import(glueUrl) as Promise<{ default: (options: object) => Promise<DoomModule> }>,
     fetchFile(`${ASSETS}/doom.wasm`),
-    fetchFile(`${WADS}/${wad.name}`),
+    fetchFile(game.path),
+    game.iwad ? fetchFile(`${folder}/${game.iwad}`) : undefined,
   ]);
 
-  const header = readWad(bytes);
-  let iwad: Wad | undefined;
-  let iwadBytes: Uint8Array | undefined;
-  if (header.kind === 'PWAD') {
-    iwad = iwadFor(header, wads);
-    if (!iwad) throw new Error(`${wad.name} adds to a game, and there is no IWAD here for it: drop doom2.wad or doom.wad on the page, or have Freedoom fetched again`);
-    iwadBytes = await fetchFile(`${WADS}/${iwad.name}`);
-  }
-
-  const einSound: SfxSink | undefined = sound?.sfx;
+  const einSound = sound && sfxSink(sound);
   // Called by `ein_saved` once Doom has written the slot's file; `doom` is set by then.
-  const einSaved = (slot: number) => onSave?.({ slot, bytes: doom.FS.readFile(`${SAVES}/doomsav${slot}.dsg`) });
+  const einSaved = (slot: number) => onKeep?.({ files: [{ name: `doomsav${slot}.dsg`, data: doom.FS.readFile(`${SAVES}/doomsav${slot}.dsg`) }] });
   const doom = await glue.default({ wasmBinary, print: log, printErr: log, einSound, einSaved });
   // Without sound the music is made at a rate nothing asks for, and never pulled.
   const sampleRate = sound?.context.sampleRate ?? 48000;
   doom.FS.mkdir(SAVES);
-  for (const save of saves) doom.FS.writeFile(`${SAVES}/doomsav${save.slot}.dsg`, save.bytes);
-  // The settings go where Doom reads them, its working directory, but for the sample rate, which is
-  // this browser's (ein_start), not that of the one they were written in.
-  for (const file of settings) doom.FS.writeFile(settingsAt(file.name), file.text.replace(/^snd_samplerate\s.*$/m, ''));
+  const settingsText = (file: Kept) => new TextDecoder().decode(file.data);
+  for (const file of kept) {
+    if (SAVE_FILE.test(file.name)) doom.FS.writeFile(`${SAVES}/${file.name}`, file.data);
+    // The settings go where Doom reads them, its working directory, but for the sample rate, which is
+    // this browser's (ein_start), not that of the one they were written in.
+    else if (SETTINGS_FILES.includes(file.name)) doom.FS.writeFile(settingsAt(file.name), settingsText(file).replace(/^snd_samplerate\s.*$/m, ''));
+  }
   // The engine's file system is its own, in memory: the WADs go in under their own names, which
   // is what Doom tells its games apart by.
-  if (iwad && iwadBytes) {
-    doom.FS.writeFile(`/${iwad.name}`, iwadBytes);
-    doom.FS.writeFile(`/${wad.name}`, bytes);
-    doom.ccall('ein_start', null, ['string', 'string', 'number'], [`/${iwad.name}`, `/${wad.name}`, sampleRate]);
+  doom.FS.writeFile(`/${game.id}`, bytes);
+  if (game.iwad && iwadBytes) {
+    doom.FS.writeFile(`/${game.iwad}`, iwadBytes);
+    doom.ccall('ein_start', null, ['string', 'string', 'number'], [`/${game.iwad}`, `/${game.id}`, sampleRate]);
   } else {
-    doom.FS.writeFile(`/${wad.name}`, bytes);
-    doom.ccall('ein_start', null, ['string', 'string', 'number'], [`/${wad.name}`, '', sampleRate]);
+    doom.ccall('ein_start', null, ['string', 'string', 'number'], [`/${game.id}`, '', sampleRate]);
   }
 
-  // The music: interleaved 16-bit stereo from the emulated OPL, into a buffer kept for it.
+  // The music: interleaved 16-bit stereo from the emulated OPL, into a buffer kept for it, pulled as
+  // the effects an engine mixes are.
   let musicFrames = 0;
   let musicBuffer = 0;
-  sound?.music((left, right) => {
+  sound?.effects((left, right) => {
     if (left.length > musicFrames) {
       musicFrames = left.length;
       musicBuffer = doom._malloc(musicFrames * 4);
@@ -149,14 +149,28 @@ export async function startEngine({ wad, wads, sound, log, saves = [], onSave, s
     }
   });
 
+  // The settings files as the game has them, kept together.
+  const keepWritten = () => {
+    const files = SETTINGS_FILES.filter((name) => doom.FS.analyzePath(settingsAt(name)).exists)
+      .map((name) => ({ name, data: doom.FS.readFile(settingsAt(name)) }));
+    if (files.length > 0) onKeep?.({ files });
+  };
+  let ended = false;
   const width = doom._ein_width();
   const height = doom._ein_height();
   return {
-    wad: wad.name,
-    ...(iwad ? { iwad: iwad.name } : {}),
     width,
     height,
-    tick: () => doom._ein_tick(),
+    tick() {
+      try {
+        doom._ein_tick();
+      } catch (error) {
+        ended = true;
+        // Quit has written the settings.
+        if (quitted(error)) keepWritten();
+        throw error;
+      }
+    },
     frames: () => doom._ein_frames(),
     draw(image) {
       // Doom's pixels are 0x00RRGGBB words; ImageData wants R, G, B, A bytes, which read as one
@@ -169,10 +183,10 @@ export async function startEngine({ wad, wads, sound, log, saves = [], onSave, s
       }
     },
     key: (pressed, key) => doom._ein_key(pressed ? 1 : 0, key),
-    settings(write) {
-      if (write) doom._ein_save_config();
-      return SETTINGS_FILES.filter((name) => doom.FS.analyzePath(settingsAt(name)).exists)
-        .map((name) => ({ name, text: doom.FS.readFile(settingsAt(name), { encoding: 'utf8' }) }));
+    keepSettings() {
+      if (ended) return;
+      doom._ein_save_config();
+      keepWritten();
     },
   };
 }

@@ -31,7 +31,9 @@ COPY save.patch /src/
 RUN git -C /src apply /src/save.patch
 
 # doomgeneric had left out Chocolate Doom's reading and writing of the settings files, so Doom started
-# with its defaults every time; the page keeps them in the player's home.
+# with its defaults every time; the page keeps them in the player's home. doomgeneric's own keys
+# above 127 (use, fire, the strafe keys), which have no scan code, are written as they are and so
+# read back as they are, not as no key.
 COPY settings.patch /src/
 RUN git -C /src apply /src/settings.patch
 

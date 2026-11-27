@@ -1,9 +1,12 @@
 {
   "name": "doom",
   "version": "0.2.1",
-  "description": "Doom in EiN: doomgeneric built to WebAssembly, played on a page of its own",
+  "description": "Doom in EiN: doomgeneric built to WebAssembly, played on the Games page",
   "license": "GPL-2.0-or-later",
-  "coreApi": "^0.15.47",
+  "coreApi": "^0.15.75",
+  "dependencies": {
+    "games": "^0.1.0"
+  },
   "exports": {
     "./api": "./lib/api.ts"
   },
@@ -13,7 +16,7 @@
   },
   "ui": {
     "routes": {
-      "/doom": "ui/pages/doom.tsx",
+      "/games/doom/:game": "ui/pages/game.tsx",
       "/cards/doom/demo": "ui/cards/demo.tsx"
     }
   }

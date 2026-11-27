@@ -1,15 +1,14 @@
+import type { Sound } from '@games/adapter';
+
 /**
- * The game's sound on Web Audio. Doom's sound effects are short 8-bit clips in the WAD; the engine
- * hands each over once (`load`) and then plays it on one of its channels with a volume and a
- * stereo separation, as the DOS sound card did. The music is an OPL2/OPL3 synthesiser emulated in
- * the engine (`engine/opl_ein.c`); a processor node asks it for samples as it needs them.
+ * Doom's sound effects on the games module's `Sound`. They are short 8-bit clips in the WAD; the
+ * engine hands each over once (`load`) and then plays it on one of its channels with a volume and a
+ * stereo separation, as the DOS sound card did. The music is the engine's own, pulled as the
+ * game's effects are (`Sound.effects`, `engine.ts`).
  */
 
-/** Frames the music is asked for at a time: about 85 ms at 48 kHz, short enough to follow the game. */
-const MUSIC_FRAMES = 4096;
-
 /** What the engine calls (`engine/ein_sound.c`); handed to the Emscripten module as `einSound`. */
-export type SfxSink = {
+type SfxSink = {
   load(lump: number, samples: Uint8Array, rate: number): void;
   start(channel: number, lump: number, volume: number, separation: number): void;
   update(channel: number, volume: number, separation: number): void;
@@ -17,31 +16,13 @@ export type SfxSink = {
   playing(channel: number): boolean;
 };
 
-/** The game's audio: the sink the engine plays effects into, and the music once it can be pulled. */
-export type Sound = {
-  context: AudioContext;
-  sfx: SfxSink;
-  /** Pull music from `render`, which fills `left` and `right` with the next samples. */
-  music(render: (left: Float32Array, right: Float32Array) => void): void;
-  muted(): boolean;
-  setMuted(muted: boolean): void;
-  close(): void;
-};
-
 /** A clip on a channel: its source, and the nodes that set its volume and side. */
 type Voice = { source: AudioBufferSourceNode; gain: GainNode; pan: StereoPannerNode; done: boolean };
 
-/**
- * Open the game's audio. Call it from the click that starts the game: a browser lets a page make
- * sound only after the person has done something on it.
- */
-export function openSound(): Sound {
-  const context = new AudioContext();
-  const master = context.createGain();
-  master.connect(context.destination);
+/** The sink the engine plays its effects into: each clip a source of `sound`'s, through `sound.output`, which mutes and holds them with the rest. */
+export function sfxSink({ context, output }: Sound): SfxSink {
   const clips = new Map<number, AudioBuffer>();
   const voices = new Map<number, Voice>();
-  let processor: ScriptProcessorNode | undefined;
 
   // Doom's volume is 0 to 127; its separation 0 (left) to 254 (right), 128 the middle.
   const level = (volume: number) => Math.max(0, Math.min(127, volume)) / 127;
@@ -61,7 +42,7 @@ export function openSound(): Sound {
     voice.gain.disconnect();
   };
 
-  const sfx: SfxSink = {
+  return {
     load(lump, samples, rate) {
       // Unsigned 8-bit, 128 the silence.
       const buffer = context.createBuffer(1, Math.max(1, samples.length), rate);
@@ -79,7 +60,7 @@ export function openSound(): Sound {
       gain.gain.value = level(volume);
       const pan = context.createStereoPanner();
       pan.pan.value = side(separation);
-      source.connect(gain).connect(pan).connect(master);
+      source.connect(gain).connect(pan).connect(output);
       const voice: Voice = { source, gain, pan, done: false };
       source.onended = () => {
         voice.done = true;
@@ -98,30 +79,6 @@ export function openSound(): Sound {
     playing: (channel) => {
       const voice = voices.get(channel);
       return !!voice && !voice.done;
-    },
-  };
-
-  return {
-    context,
-    sfx,
-    music(render) {
-      // A ScriptProcessorNode runs on the page's own thread, where the engine is: an AudioWorklet
-      // would need the engine on the audio thread too.
-      processor = context.createScriptProcessor(MUSIC_FRAMES, 0, 2);
-      processor.onaudioprocess = (event) => render(event.outputBuffer.getChannelData(0), event.outputBuffer.getChannelData(1));
-      processor.connect(master);
-    },
-    muted: () => master.gain.value === 0,
-    setMuted(muted) {
-      master.gain.value = muted ? 0 : 1;
-    },
-    close() {
-      for (const channel of [...voices.keys()]) stop(channel);
-      if (processor) {
-        processor.onaudioprocess = null;
-        processor.disconnect();
-      }
-      void context.close();
     },
   };
 }

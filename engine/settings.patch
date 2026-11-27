@@ -1,5 +1,5 @@
 diff --git a/doomgeneric/m_config.c b/doomgeneric/m_config.c
-index 865e168..414854e 100644
+index 865e168..3451e6d 100644
 --- a/doomgeneric/m_config.c
 +++ b/doomgeneric/m_config.c
 @@ -1608,7 +1608,6 @@ static const int scantokey[128] =
@@ -18,7 +18,29 @@ index 865e168..414854e 100644
  }
  
  // Parses integer values in the configuration file
-@@ -1770,7 +1768,6 @@ static void SetVariable(default_t *def, char *value)
+@@ -1745,7 +1743,11 @@ static void SetVariable(default_t *def, char *value)
+         case DEFAULT_KEY:
+ 
+             // translate scancodes read from config
+-            // file (save the old value in untranslated)
++            // file (save the old value in untranslated).
++            // doomgeneric's own keys above 127 (KEY_USE,
++            // KEY_FIRE, the strafe keys) have no scancode,
++            // so SaveDefaultCollection writes them as they
++            // are: they are read back as they are.
+ 
+             intparm = ParseIntParameter(value);
+             def->untranslated = intparm;
+@@ -1753,7 +1755,7 @@ static void SetVariable(default_t *def, char *value)
+             {
+                 intparm = scantokey[intparm];
+             }
+-            else
++            else if (intparm < 128 || intparm > 255)
+             {
+                 intparm = 0;
+             }
+@@ -1770,7 +1772,6 @@ static void SetVariable(default_t *def, char *value)
  
  static void LoadDefaultCollection(default_collection_t *collection)
  {
@@ -26,7 +48,7 @@ index 865e168..414854e 100644
      FILE *f;
      default_t *def;
      char defname[80];
-@@ -1828,7 +1825,6 @@ static void LoadDefaultCollection(default_collection_t *collection)
+@@ -1828,7 +1829,6 @@ static void LoadDefaultCollection(default_collection_t *collection)
      }
  
      fclose (f);
