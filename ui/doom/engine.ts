@@ -2,7 +2,7 @@ import { fileUrl } from '@ein/ui/lib';
 import type { RunningGame, StartOptions, Written } from '@games/adapter';
 import { startWorkerGame } from '@games/worker';
 import type { Wad } from '../../lib/api.ts';
-import { heardKept, heardRunning, heardWritten, IN_CRISPY, moduleDefaults, settingsOf, withSetting } from './binds.ts';
+import { heardKept, heardRunning, heardWritten, inCrispy, moduleDefaults, settingsOf, withSetting } from './binds.ts';
 import { scancode } from './keys.ts';
 import { type DoomInput, type DoomStart, enginePath, SAVES, SETTINGS } from './start.ts';
 
@@ -53,7 +53,7 @@ export async function startDoom(
   const settings = [main, crispy].flatMap((name) => {
     const data = startingSettings(
       kept.find((file) => file.name === name)?.data,
-      defaults.filter(([setting]) => IN_CRISPY.has(setting) === (name === crispy)),
+      defaults.filter(([setting]) => inCrispy(setting) === (name === crispy)),
     );
     return data ? [{ path: enginePath(name), data }] : [];
   });

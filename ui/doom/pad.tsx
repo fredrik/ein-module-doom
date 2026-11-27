@@ -26,8 +26,8 @@ const CAPS: Record<string, { x: number; y: number; w: number }> = {
   jump: { x: 168, y: 2, w: 34 },
 };
 
-/** Hexen's caps where they differ: Space, the wide cap, jumps, and Use is a key of its own. */
-const HEXEN_CAPS: Record<string, { x: number; y: number; w: number }> = {
+/** The caps of a game that jumps, Doom and Hexen, where they differ: Space, the wide cap, jumps, and Use is a key of its own. */
+const JUMP_CAPS: Record<string, { x: number; y: number; w: number }> = {
   jump: { x: 66, y: 82, w: 118 },
   use: { x: 168, y: 2, w: 34 },
 };
@@ -68,7 +68,7 @@ function Cap(
     onPick?(): void;
   },
 ) {
-  const { x, y, w } = (engine === 'hexen' ? HEXEN_CAPS[id] : undefined) ?? CAPS[id];
+  const { x, y, w } = (engine !== 'heretic' ? JUMP_CAPS[id] : undefined) ?? CAPS[id];
   const label = waiting ? '?' : code ? keyLabel(code) : '—';
   const size = label.length > 2 ? 9 : 13;
   const picks = onPick

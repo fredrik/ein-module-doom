@@ -39,8 +39,8 @@ thread.
 ## Install
 
 It needs an EiN whose core has module API 0.15.77 or later, which gives a module its Web Workers,
-and EiN's games module (`games`, 0.1.2-dev.8 or later). As an administrator, open **Settings → Modules**,
-choose **Install**, and give `https://github.com/fredrik/ein-module-doom` under **From a
+and EiN's games module (`games`, 0.1.2-dev.8 or later). As an administrator, open **Settings →
+Modules**, choose **Install**, and give `https://github.com/fredrik/ein-module-doom` under **From a
 repository**.
 
 The games are on the **Games** page, under Browse in the sidebar, a card each. The module comes with
@@ -62,11 +62,11 @@ the order they came out. Choose one to open its page, `/games/doom/<WAD>`, and *
 Click the game, so it has the keyboard and the mouse. They play as the quake module plays Quake,
 where the game has the same: the mouse looks around, up and down too, its left button fires and its
 right runs forward, the wheel changes weapons; WASD or the arrows move, Ctrl fires, Shift runs, Alt
-strafes; Escape opens the game's menu and gives the mouse back. Space opens doors, Tab shows the
-map. Heretic and Hexen also fly and use their artifacts from the keyboard, and in Hexen, which
-jumps, Space jumps, as in Quake, and E opens doors. While the game has
-the focus it takes these keys before EiN does, Alt+letter included; click outside it to give them
-back.
+strafes; Escape opens the game's menu and gives the mouse back, Tab shows the map. In Doom and
+Hexen, which jump, Space jumps, as in Quake, and E opens doors; in Heretic, which does not, Space
+opens doors. Heretic and Hexen also fly and use their artifacts from the keyboard. While the game
+has the focus it takes these keys before EiN does, Alt+letter included; click outside it to give
+them back.
 
 Where a keyboard plays, the page's header shows the keys and the mouse the game is played with. The
 game has no menu to change them in, so **Keys**, in the ⋮ menu, is where they change: click a key,
@@ -88,8 +88,10 @@ for the slot and one for each map of the hub it remembers.
 The settings are yours whatever WAD you play, kept once in `.doom/`, above the saves, two files for
 each game: the game's own, `default.cfg`, `heretic.cfg` or `hexen.cfg`, with the volumes, the screen
 size, messages and the keys bound, and Crispy's, `crispy-doom.cfg`, `crispy-heretic.cfg` or
-`crispy-hexen.cfg`, with Crispy's further ones. Mouse look and drawing as many frames as the screen
-shows are on until you turn them off. The settings are written when you close the game's menu,
+`crispy-hexen.cfg`, with Crispy's further ones. Until you change them, mouse look is on, the games
+are drawn at 16:9 and as many frames as the screen shows, and Doom plays with the Crispness the
+household chose: jumping, freelook, a crosshair, brightmaps, translucency, coloured blood and status
+bar, smooth lighting, and more. The settings are written when you close the game's menu,
 quit, go to another page of EiN's or close the tab, and read when the game starts, all but the
 sound's sample rate, which is the browser's.
 

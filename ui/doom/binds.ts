@@ -38,22 +38,15 @@ export const CONTROLS: Record<Engine, Record<string, Control>> = (() => {
     fly: { name: 'Fly up', settings: ['key_flyup'] },
   };
   return {
-    doom: shared,
+    doom: { ...shared, jump: { name: 'Jump', settings: ['key_jump'] } },
     heretic: raven,
     hexen: { ...raven, jump: { name: 'Jump', settings: ['key_jump'] } },
   };
 })();
 
-/** The settings in Crispy's file rather than the game's own; the rest are in the game's. */
-export const IN_CRISPY = new Set([
-  'key_map_toggle',
-  'mouseb_use',
-  'mouseb_backward',
-  'mouseb_prevweapon',
-  'mouseb_nextweapon',
-  'crispy_mouselook',
-  'crispy_uncapped',
-]);
+/** Whether a setting is in Crispy's file rather than the game's own: Crispy's own (`crispy_*`) and a few more keys and buttons. */
+export const inCrispy = (name: string): boolean =>
+  name.startsWith('crispy_') || ['key_map_toggle', 'mouseb_use', 'mouseb_backward', 'mouseb_prevweapon', 'mouseb_nextweapon'].includes(name);
 
 /** Crispy Doom's own defaults for the settings the drawing shows, the same in all three games (`moduleDefaults` changes some). */
 const DEFAULTS: Record<string, number> = {
@@ -86,18 +79,40 @@ const DEFAULTS: Record<string, number> = {
  * The settings the module plays with where the player has none of their own, over Crispy's, with
  * the keys and the mouse as the quake module plays Quake where the game has the same: mouse look,
  * since the mouse is how the page plays; frames drawn as often as the screen shows them, the game's
- * movement drawn between its 35 tics a second; the right button runs forward, as Quake's does, the
- * middle strafes, and the wheel only changes weapons; and in Hexen, which jumps, Space jumps, as in
- * Quake, and E uses.
+ * movement drawn between its 35 tics a second, at 16:9; the right button runs forward, as Quake's
+ * does, the middle strafes, and the wheel only changes weapons; and in Doom and Hexen, which jump,
+ * Space jumps, as in Quake, and E uses. Doom also plays as the household chose in Crispness: its
+ * jumping on, the view's pitch, freelook, a crosshair, brightmaps, translucency, coloured blood
+ * and status bar, smooth lighting and automap, its stats, flipped corpses, things over and under
+ * each other, and every sound played whole.
  */
 export function moduleDefaults(engine: Engine): Record<string, number> {
+  const jumps = { key_jump: 57, key_use: 18 };
+  const doom = {
+    crispy_jump: 2,
+    crispy_pitch: 1,
+    crispy_freelook: 1,
+    crispy_crosshair: 1,
+    crispy_brightmaps: 3,
+    crispy_translucency: 3,
+    crispy_coloredblood: 2,
+    crispy_coloredhud: 3,
+    crispy_smoothlight: 1,
+    crispy_smoothmap: 1,
+    crispy_automapstats: 1,
+    crispy_flipcorpses: 1,
+    crispy_overunder: 1,
+    crispy_soundfull: 1,
+  };
   return {
     crispy_mouselook: 1,
     crispy_uncapped: 1,
+    // RATIO_16_9 in Crispy's widescreen setting.
+    crispy_widescreen: 3,
     mouseb_forward: 1,
     mouseb_strafe: 2,
     mouseb_speed: -1,
-    ...(engine === 'hexen' ? { key_jump: 57, key_use: 18 } : {}),
+    ...(engine === 'doom' ? { ...doom, ...jumps } : engine === 'hexen' ? jumps : {}),
   };
 }
 
@@ -269,7 +284,7 @@ async function change(
   const now = files.get(engine) ?? { main: null, crispy: null };
   let { main, crispy } = now;
   for (const [name, value] of changes) {
-    if (IN_CRISPY.has(name)) {
+    if (inCrispy(name)) {
       crispy = withSetting(crispy ?? '', name, String(value));
     } else main = withSetting(main ?? '', name, String(value));
     if (running?.engine === engine) {
