@@ -16,9 +16,11 @@ As an administrator, open **Settings → Modules**, choose **Install**, and give
 `https://github.com/fredrik/ein-module-doom` under **From a repository**.
 
 Doom appears in the sidebar under **Games**, a section between Browse and System that other games'
-modules can put their pages in too. While the module installs, it fetches
-[Freedoom](https://freedoom.github.io), free game data for Doom's engine, so there is something to
-play straight away: **Freedoom: Phase 1** plays as Doom, **Freedoom: Phase 2** as Doom II.
+modules can put their pages in too. The module comes with no game data. Until it is there, the page's
+list offers [Freedoom](https://freedoom.github.io), free game data for Doom's engine, with a **Fetch**
+button for an administrator (EiN lets only the administrator fetch from the internet) that downloads
+its release, checks it against the release's SHA-256 and puts its two WADs
+in the list: **Freedoom: Phase 1** plays as Doom, **Freedoom: Phase 2** as Doom II.
 
 ## Play
 
@@ -68,9 +70,8 @@ Drag one or more `.wad` files from your computer and drop them anywhere on the p
 
 The WADs are kept in `/groups/users/doom`, the household's shared folder, so everyone with an
 account plays the same ones and may add to them, and they stay when the module is updated or
-installed again. The bin beside a WAD deletes it for everyone. A deleted Freedoom WAD stays deleted;
-to fetch Freedoom again, delete `.freedoom-0.13.0` in that folder and restart the `freedoom` service
-on the **Status**'s services tab.
+installed again. The bin beside a WAD deletes it for everyone; Freedoom is offered again once one of
+its WADs is gone. In EiN's terminal, `doom-fetch freedoom` fetches it, as the page's **Fetch** does.
 
 Heretic, Hexen and Strife run on Doom's engine too, but not on this build of it: the list shows
 their IWADs as not playable here.
@@ -104,8 +105,8 @@ No mouse.
 | `ui/doom/sound.ts`                   | The sound effects and the music on Web Audio.                                                                                    |
 | `ui/doom/keys.ts`                    | Browser key codes to Doom's.                                                                                                     |
 | `bin/doom-wads`                      | Lists the WADs with their titles, for the page and the card's choice of game.                                                    |
-| `lib/wads.ts`, `lib/api.ts`          | Where the WADs are, the games known by name, and the shape `doom-wads` answers in.                                               |
-| `services/freedoom/`                 | Fetches Freedoom into the WAD folder once, checked against its release's SHA-256, then ends.                                     |
+| `lib/wads.ts`, `lib/api.ts`          | Where the WADs are, the games known by name, the game data the page offers, and the shape `doom-wads` answers in.                |
+| `bin/doom-fetch`                     | Fetches Freedoom into the WAD folder when the page's Fetch is chosen, checked against its release's SHA-256.                     |
 | `engine/doomgeneric_ein.c`           | doomgeneric's platform layer for the page.                                                                                       |
 | `engine/ein_sound.c`                 | The sound module: hands each effect's samples to the page once, then plays them on its channels.                                 |
 | `engine/opl_ein.c`                   | Chocolate Doom's OPL library on Nuked OPL3, rendering music when the page asks for samples.                                      |
@@ -138,7 +139,7 @@ and the `engine/` files added.
 Mount the checkout read-only in EiN's container as `/modules-dev/doom` and set
 `DEV_MODULES_PATH=/modules-dev`; EiN sets the module up when it starts, and it runs instead of an
 installed one. After a change to a page, run `ui-build doom` in EiN's terminal and reload the
-browser; after a change to `mod.json` or a service, `mod setup doom`. A file in `assets/` is read
+browser; after a change to `mod.json`, `mod setup doom`. A file in `assets/` is read
 as it is.
 
 The smoke test wants a running EiN with the module and a WAD, Google Chrome, and Node 22 or later:
@@ -150,5 +151,5 @@ The smoke test wants a running EiN with the module and a WAD, Google Chrome, and
 GPL-2.0-or-later, as doomgeneric and Chocolate Doom are: see `LICENSE`. Doom's source is © id
 Software and the Chocolate Doom and doomgeneric authors; their notices are in the source the build
 fetches. Nuked OPL3 (`opl3.c`) is LGPL-2.1-or-later, © Nuke.YKT. `assets/doom.js` is Emscripten's
-runtime, under the MIT licence. Freedoom, which the module fetches and does not ship, is under its
+runtime, under the MIT licence. Freedoom, which the module fetches when asked and does not ship, is under its
 own BSD-style licence.

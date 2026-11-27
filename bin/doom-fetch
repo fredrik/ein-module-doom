@@ -1,0 +1,47 @@
+#!bash
+# doom-fetch — fetches the free game data the Doom page offers into its WAD folder, when someone
+# chooses Fetch there: Freedoom (https://freedoom.github.io), whose Phase 1 plays as Doom and Phase 2
+# as Doom II. Its release's zip is fetched, checked against its SHA-256, and its two WADs unpacked
+# into the folder the page lists; a WAD already there under the same name is left as it is. It runs
+# as whoever runs it, which has to be the administrator: EiN lets only the administrator fetch URLs.
+arg --desc "Fetch the free game data the Doom page offers into its WAD folder"
+arg --effect write
+arg '<game>' string "freedoom (Freedoom: Phase 1 and Phase 2)"
+arg --example "doom-fetch freedoom"
+arg --returns "nothing; the WADs are in /groups/users/doom."
+arg --export
+
+if [ "$GAME" != freedoom ]; then
+  echo "doom-fetch: $GAME is not a game it fetches: freedoom" >&2
+  exit 2
+fi
+release=0.13.0
+url=https://github.com/freedoom/freedoom/releases/download/v$release/freedoom-$release.zip
+sha256=3f9b264f3e3ce503b4fb7f6bdcb1f419d93c7b546f4df3e874dd878db9688f59
+wads=/groups/users/doom
+# Unpacked outside the household's folders, where EiN's media pipelines would read the release's
+# pictures and documents.
+work=/tmp/doom-fetch-freedoom
+
+mkdir -p "$wads"
+if ! curl -fLs -o "$work.zip" "$url"; then
+  echo "doom-fetch: could not fetch $url" >&2
+  exit 1
+fi
+if ! attrs "$work.zip" | grep -q "$sha256"; then
+  echo "doom-fetch: $url is not the release it should be (its SHA-256 is not $sha256)" >&2
+  rm "$work.zip"
+  exit 1
+fi
+if ! unzip -o -d "$work" "$work.zip" > /dev/null; then
+  echo "doom-fetch: could not unpack $url" >&2
+  rm "$work.zip"
+  [ -e "$work" ] && rm -r "$work"
+  exit 1
+fi
+for wad in freedoom1.wad freedoom2.wad; do
+  # One someone uploaded under the same name is theirs to keep.
+  [ -e "$wads/$wad" ] || mv "$work/freedoom-$release/$wad" "$wads/$wad"
+done
+rm -r "$work" "$work.zip"
+echo "doom-fetch: Freedoom $release is in $wads"

@@ -2,10 +2,23 @@ import type { Wad } from './api.ts';
 
 /**
  * Where the game data is: a folder in the household's shared home, so everyone signed in plays
- * the same WADs and may add to them. The module's `freedoom` service puts Freedoom here when the
- * module is installed, and what is dropped on the page is uploaded here.
+ * the same WADs and may add to them. The game data the page offers (`OFFERS`) is fetched here by
+ * `doom-fetch`, and what is dropped on the page is uploaded here.
  */
 export const WADS = '/groups/users/doom';
+
+/** Free game data the page offers to fetch with `doom-fetch`, while one of its WADs is not here. */
+export type Offer = { name: string; title: string; about: string; wads: string[]; download: number };
+
+export const OFFERS: Offer[] = [
+  {
+    name: 'freedoom',
+    title: 'Freedoom',
+    about: "Free game data for Doom's engine: Phase 1 plays as Doom, Phase 2 as Doom II.",
+    wads: ['freedoom1.wad', 'freedoom2.wad'],
+    download: 24_143_781,
+  },
+];
 
 /**
  * The IWADs the page knows by name, with their titles, in the order they came out, which is the
