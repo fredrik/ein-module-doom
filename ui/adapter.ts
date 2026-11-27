@@ -17,7 +17,7 @@ export const adapter: GameAdapter<Game> = {
     return await startDoom({ game, ...options });
   },
   help:
-    'The mouse looks and fires, its right button runs forward, WASD or the arrows move, Space jumps and E uses (in Heretic Space uses), Shift runs, Escape is the menu, Tab the map.',
+    'The mouse looks and fires, its right button runs forward, WASD or the arrows move, E uses, Space jumps (in Heretic it flies up), Shift runs, Escape is the menu, Tab the map.',
   // The player's keys on the keyboard and the mouse, which the games page shows where a keyboard
   // plays, beside the menu's and the map's keys; they change in the Keys dialog.
   keys: {

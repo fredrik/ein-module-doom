@@ -12,7 +12,7 @@ import { keyLabel, keyName, settingOf } from './keys.ts';
  * on a key and then a key gives it that key (`bindKey`), in the game running too.
  */
 
-/** Where each control's key cap is: `x`, `y` and its width, in the drawing's 320 by 124. */
+/** Where each control's key cap is: `x`, `y` and its width, in the drawing's 320 by 124; Space's and Use's are `capAt`'s. */
 const CAPS: Record<string, { x: number; y: number; w: number }> = {
   fire: { x: 0, y: 2, w: 60 },
   forward: { x: 78, y: 2, w: 34 },
@@ -22,15 +22,17 @@ const CAPS: Record<string, { x: number; y: number; w: number }> = {
   right: { x: 116, y: 42, w: 34 },
   fly: { x: 158, y: 42, w: 44 },
   run: { x: 0, y: 82, w: 60 },
-  use: { x: 66, y: 82, w: 118 },
-  jump: { x: 168, y: 2, w: 34 },
 };
 
-/** The caps of a game that jumps, Doom and Hexen, where they differ: Space, the wide cap, jumps, and Use is a key of its own. */
-const JUMP_CAPS: Record<string, { x: number; y: number; w: number }> = {
-  jump: { x: 66, y: 82, w: 118 },
-  use: { x: 168, y: 2, w: 34 },
-};
+/** Each game's control on Space, the wide cap: what goes up, as Quake's Space does. Use is then a key of its own. */
+const SPACE: Record<Engine, string> = { doom: 'jump', heretic: 'fly', hexen: 'jump' };
+
+/** Where a control's cap is in `engine`'s drawing. */
+function capAt(engine: Engine, id: string): { x: number; y: number; w: number } {
+  if (id === SPACE[engine]) return { x: 66, y: 82, w: 118 };
+  if (id === 'use') return { x: 168, y: 2, w: 34 };
+  return CAPS[id];
+}
 
 /** What each of the game's mouse settings does, as the drawing names it. */
 const MOUSE_ACTIONS: Record<string, string> = {
@@ -68,7 +70,7 @@ function Cap(
     onPick?(): void;
   },
 ) {
-  const { x, y, w } = (engine !== 'heretic' ? JUMP_CAPS[id] : undefined) ?? CAPS[id];
+  const { x, y, w } = capAt(engine, id);
   const label = waiting ? '?' : code ? keyLabel(code) : '—';
   const size = label.length > 2 ? 9 : 13;
   const picks = onPick

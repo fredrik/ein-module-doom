@@ -62,9 +62,9 @@ the order they came out. Choose one to open its page, `/games/doom/<WAD>`, and *
 Click the game, so it has the keyboard and the mouse. They play as the quake module plays Quake,
 where the game has the same: the mouse looks around, up and down too, its left button fires and its
 right runs forward, the wheel changes weapons; WASD or the arrows move, Ctrl fires, Shift runs, Alt
-strafes; Escape opens the game's menu and gives the mouse back, Tab shows the map. In Doom and
-Hexen, which jump, Space jumps, as in Quake, and E opens doors; in Heretic, which does not, Space
-opens doors. Heretic and Hexen also fly and use their artifacts from the keyboard. While the game
+strafes; Escape opens the game's menu and gives the mouse back, Tab shows the map. E opens doors,
+and Space goes up, as in Quake: Doom and Hexen jump, Heretic, which does not, flies up once it has
+wings. Heretic and Hexen also fly and use their artifacts from the keyboard. While the game
 has the focus it takes these keys before EiN does, Alt+letter included; click outside it to give
 them back.
 
@@ -89,11 +89,11 @@ The settings are yours whatever WAD you play, kept once in `.doom/`, above the s
 each game: the game's own, `default.cfg`, `heretic.cfg` or `hexen.cfg`, with the volumes, the screen
 size, messages and the keys bound, and Crispy's, `crispy-doom.cfg`, `crispy-heretic.cfg` or
 `crispy-hexen.cfg`, with Crispy's further ones. Until you change them, mouse look is on, the games
-are drawn at 16:9 and as many frames as the screen shows, and Doom plays with the Crispness the
-household chose: jumping, freelook, a crosshair, brightmaps, translucency, coloured blood and status
-bar, smooth lighting, and more. The settings are written when you close the game's menu,
-quit, go to another page of EiN's or close the tab, and read when the game starts, all but the
-sound's sample rate, which is the browser's.
+are drawn at 16:9 and as many frames as the screen shows, and they play with the Crispness the
+household chose: brightmaps, translucency, smooth lighting, freelook and a dot of a crosshair in
+all three, and in Doom jumping, coloured blood and status bar, and more. The settings are written
+when you close the game's menu, quit, go to another page of EiN's or close the tab, and read when
+the game starts, all but the sound's sample rate, which is the browser's.
 
 Without an account, saves and settings last only as long as the page.
 

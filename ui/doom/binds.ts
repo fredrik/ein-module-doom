@@ -80,39 +80,45 @@ const DEFAULTS: Record<string, number> = {
  * the keys and the mouse as the quake module plays Quake where the game has the same: mouse look,
  * since the mouse is how the page plays; frames drawn as often as the screen shows them, the game's
  * movement drawn between its 35 tics a second, at 16:9; the right button runs forward, as Quake's
- * does, the middle strafes, and the wheel only changes weapons; and in Doom and Hexen, which jump,
- * Space jumps, as in Quake, and E uses. Doom also plays as the household chose in Crispness: its
- * jumping on, the view's pitch, freelook, a crosshair, brightmaps, translucency, coloured blood
- * and status bar, smooth lighting and automap, its stats, flipped corpses, things over and under
- * each other, and every sound played whole.
+ * does, the middle strafes, and the wheel only changes weapons; E uses, and Space goes up, as in
+ * Quake: Doom and Hexen jump on it, Heretic, which does not jump, flies up. The games also play
+ * with the Crispness the household chose: brightmaps, translucency, smooth lighting, freelook and
+ * a dot of a crosshair in all three, and Heretic's automap stats; Doom's jumping, the view's pitch,
+ * coloured blood and status bar, smooth automap, flipped corpses, things over and under each other,
+ * and every sound played whole.
  */
 export function moduleDefaults(engine: Engine): Record<string, number> {
-  const jumps = { key_jump: 57, key_use: 18 };
-  const doom = {
-    crispy_jump: 2,
-    crispy_pitch: 1,
-    crispy_freelook: 1,
-    crispy_crosshair: 1,
+  const all = {
+    crispy_mouselook: 1,
+    crispy_uncapped: 1,
+    // RATIO_16_9 in Crispy's widescreen setting.
+    crispy_widescreen: 3,
     crispy_brightmaps: 3,
     crispy_translucency: 3,
+    crispy_smoothlight: 1,
+    crispy_freelook: 1,
+    crispy_crosshair: 1,
+    mouseb_forward: 1,
+    mouseb_strafe: 2,
+    mouseb_speed: -1,
+    key_use: 18,
+  };
+  if (engine === 'heretic') return { ...all, key_flyup: 57, crispy_automapstats: 1 };
+  if (engine === 'hexen') return { ...all, key_jump: 57 };
+  return {
+    ...all,
+    key_jump: 57,
+    // Doom's dot; Heretic's and Hexen's crosshair is a dot unless set otherwise.
+    crispy_crosshairtype: 2,
+    crispy_jump: 2,
+    crispy_pitch: 1,
     crispy_coloredblood: 2,
     crispy_coloredhud: 3,
-    crispy_smoothlight: 1,
     crispy_smoothmap: 1,
     crispy_automapstats: 1,
     crispy_flipcorpses: 1,
     crispy_overunder: 1,
     crispy_soundfull: 1,
-  };
-  return {
-    crispy_mouselook: 1,
-    crispy_uncapped: 1,
-    // RATIO_16_9 in Crispy's widescreen setting.
-    crispy_widescreen: 3,
-    mouseb_forward: 1,
-    mouseb_strafe: 2,
-    mouseb_speed: -1,
-    ...(engine === 'doom' ? { ...doom, ...jumps } : engine === 'hexen' ? jumps : {}),
   };
 }
 
