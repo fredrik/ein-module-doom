@@ -1,17 +1,19 @@
 # doom
 
-A module for [EiN](https://einhq.eu) that plays Doom in the browser, with sound and music: the 1993
-one, shotgun and all, a click away from the family's recipes. Its games are on EiN's **Games** page,
-which the games module gives: this module brings the engine and the WADs, and the games module the
-page each is played on, the saves, the sound and the dropped files.
+A module for [EiN](https://einhq.eu) that plays Doom, Heretic and Hexen in the browser, with sound
+and music, mouse look and the keys you choose: the 1993 one, shotgun and all, a click away from the
+family's recipes. Its games are on EiN's **Games** page, which the games module gives: this module
+brings the engines and the WADs, and the games module the page each is played on, the saves, the
+sound and the dropped files.
 
-The engine is [doomgeneric](https://github.com/ozkl/doomgeneric) built to WebAssembly with
-Emscripten, single-threaded, with a platform layer of its own (`engine/doomgeneric_ein.c`) and no
-SDL. It runs in the module's Web Worker, on the games module's kit for an engine in a worker, not on
-the page: the worker loads it at runtime from the module's `assets/` directory and reads the WADs
-from EiN a piece at a time as Doom asks for them, so a level is downloaded as it is played. The
-games module's page asks the worker for a frame each time it draws, and shows Doom's 320 by 200
-frames at 4:3, the shape its pixels had on a CRT.
+The engines are [Crispy Doom](https://github.com/fabiangreffrath/crispy-doom)'s Doom, Heretic and
+Hexen, each built to WebAssembly with Emscripten, single-threaded, with a platform layer of their
+own (`engine/ein_*.c`) and no SDL. A game runs in the module's Web Worker, on the games module's kit
+for an engine in a worker, not on the page: the worker loads its engine at runtime from the
+module's `assets/` directory and reads the WADs from EiN a piece at a time as the game asks for
+them, so a level is downloaded as it is played. Crispy draws at 640 by 400, wider to fit a wide
+screen, and as often as the screen shows a frame, its movement drawn between the game's 35 tics a
+second; the frames come out at the shape they had on a 4:3 CRT.
 
 It is not one of EiN's own modules and has nothing to do with a family's archive.
 
@@ -19,35 +21,37 @@ It is not one of EiN's own modules and has nothing to do with a family's archive
 
 ```
   the Games page (games module)                   the engine's worker (this module)
- ┌────────────────────────────────┐  tick, keys  ┌──────────────────────────────────┐
- │ the canvas, the keyboard,      │ ───────────▶ │ doom.wasm: doomgeneric, its      │
- │ Web Audio, and the player's    │              │ effects mixed over OPL3 music    │
- │ saves and settings in ~/.doom  │ ◀─────────── │                                  │
- └────────────────────────────────┘  the frame,  └──────────────────────────────────┘
-                                     the sound,           │ a piece of a WAD,
-                                     files Doom wrote     ▼ as Doom asks for it
+ ┌────────────────────────────────┐ tick, input  ┌──────────────────────────────────┐
+ │ the canvas, the keyboard and   │ ───────────▶ │ doom.wasm, heretic.wasm or       │
+ │ the mouse, Web Audio, and the  │              │ hexen.wasm: Crispy Doom, its     │
+ │ player's saves and settings in │ ◀─────────── │ effects mixed over OPL3 music    │
+ │ ~/.doom                        │  the frame,  └──────────────────────────────────┘
+ └────────────────────────────────┘  the sound,           │ a piece of a WAD,
+                                     files it wrote       ▼ as the game asks for it
                                                    /groups/users/doom/*.wad
 ```
 
 The page and the worker talk by `postMessage` only, with no shared memory. Each animation frame the
-page sends a tick; the worker runs the tics of Doom's that are due and answers with the frame, the
-sound for the time since the last tick, and whether Doom's menu is up. Nothing of Doom's runs on the
-page's thread.
+page sends a tick; the worker runs the game's frame and answers with it, the sound for the time
+since the last tick, and whether the game's menu is up. Nothing of the game's runs on the page's
+thread.
 
 ## Install
 
 It needs an EiN whose core has module API 0.15.77 or later, which gives a module its Web Workers,
-and EiN's games module (`games`, 0.1.1 or later). As an administrator, open **Settings → Modules**,
-choose **Install**, and give `https://github.com/fredrik/ein-module-doom` under **From a
+and EiN's games module (`games`, 0.1.2-dev.8 or later). As an administrator, open **Settings →
+Modules**, choose **Install**, and give `https://github.com/fredrik/ein-module-doom` under **From a
 repository**.
 
 The games are on the **Games** page, under Browse in the sidebar, a card each. The module comes with
-no game data. Until it is there, the Games page offers [Freedoom](https://freedoom.github.io), free
-game data for Doom's engine, under **Free downloads**: **Freedoom: Phase 1** plays as Doom,
-**Freedoom: Phase 2** as Doom II. **Download**, for an administrator (EiN lets only the
-administrator fetch from the internet), downloads Freedoom's release, checks it against the
-release's SHA-256 and puts both its WADs in the folder, whichever of the two it was chosen on.
-Nothing is downloaded when the module is installed.
+no game data. Until it is there, the Games page offers free game data under **Free downloads**:
+[Freedoom](https://freedoom.github.io), whose **Phase 1** plays as Doom and **Phase 2** as Doom II,
+**Heretic (shareware)**, its first episode, and **Hexen (demo)**, its first four levels, which
+Raven Software let anyone play and pass on. **Download**, for an administrator (EiN lets only the
+administrator fetch from the internet), downloads Freedoom's release or the game's from the
+[idgames archive](https://www.doomworld.com/idgames/), checks it against its SHA-256 and puts its
+WADs in the folder; Freedoom's are both, whichever of the two it was chosen on. Nothing is
+downloaded when the module is installed.
 
 ## Play
 
@@ -55,24 +59,41 @@ Each WAD's card on the Games page has its title screen, read out of the WAD, and
 its file's name and size, and for a PWAD the IWAD it is played with; the known games come first, in
 the order they came out. Choose one to open its page, `/games/doom/<WAD>`, and **Play** to play it.
 
-Click the game first, so it has the keyboard. Arrows move, Ctrl fires, Space opens doors, Shift
-runs, Alt strafes, Escape opens Doom's menu, Enter picks. While the game has the focus it takes
-these keys before EiN does, Alt+letter included; click outside it to give them back. The buttons in
+Click the game, so it has the keyboard and the mouse. They play as the quake module plays Quake,
+where the game has the same: the mouse looks around, up and down too, its left button fires and its
+right runs forward, the wheel changes weapons; WASD or the arrows move, Ctrl fires, Shift runs, Alt
+strafes; Escape opens the game's menu and gives the mouse back, Tab shows the map. E opens doors,
+and Space goes up, as in Quake: Doom and Hexen jump, Heretic, which does not, flies up once it has
+wings. Heretic and Hexen also fly and use their artifacts from the keyboard. While the game
+has the focus it takes these keys before EiN does, Alt+letter included; click outside it to give
+them back.
+
+Where a keyboard plays, the page's header shows the keys and the mouse the game is played with. The
+game has no menu to change them in, so **Keys**, in the ⋮ menu, is where they change: click a key,
+then press the one it is to be. A change is kept in your settings, and the game running takes it at
+once. Crispy's own menu, **Crispness** in the options, sets the rest: mouse look, the resolution,
+the widescreen and how many frames are drawn. The buttons in
 the header turn the sound off and on, which the browser remembers for next time, and show the game
 full screen, as F11 does. A tab that is hidden holds the game and its sound until it shows again.
 Quit in Doom's menu leaves the page as it was before **Play**.
 
 ## Saved games and settings
 
-Doom's **Save Game** and **Load Game** keep your games in your home, in `.doom/<WAD>/`, one folder
-for each WAD you play, so a save is loaded only into the game it was made in and nobody else sees
-it. Each of the six slots is a file, `doomsav0.dsg` to `doomsav5.dsg`, as Chocolate Doom writes it.
+**Save Game** and **Load Game** keep your games in your home, in `.doom/<WAD>/`, one folder for
+each WAD you play, so a save is loaded only into the game it was made in and nobody else sees it.
+Crispy has pages of six slots each. A Doom slot is a file, `doomsav<slot>.dsg`, and a Heretic slot
+`hticsav<slot>.hsg`; a Hexen slot is a folder, `slot<slot>/`, of the files Hexen keeps for it, one
+for the slot and one for each map of the hub it remembers.
 
-Doom's settings are yours whatever WAD you play, kept once in `.doom/`, above the saves:
-`default.cfg`, with the volumes, the screen size, messages and the keys bound, and
-`doomgenericdoom.cfg`, with Chocolate Doom's further ones. They are written when you close Doom's
-menu, quit the game, go to another page of EiN's or close the tab, and read when the game starts,
-all but the sound's sample rate, which is the browser's.
+The settings are yours whatever WAD you play, kept once in `.doom/`, above the saves, two files for
+each game: the game's own, `default.cfg`, `heretic.cfg` or `hexen.cfg`, with the volumes, the screen
+size, messages and the keys bound, and Crispy's, `crispy-doom.cfg`, `crispy-heretic.cfg` or
+`crispy-hexen.cfg`, with Crispy's further ones. Until you change them, mouse look is on, the games
+are drawn at 16:9 and as many frames as the screen shows, and they play with the Crispness the
+household chose: brightmaps, translucency, smooth lighting, freelook and a dot of a crosshair in
+all three, and in Doom jumping, coloured blood and status bar, and more. The settings are written
+when you close the game's menu, quit, go to another page of EiN's or close the tab, and read when
+the game starts, all but the sound's sample rate, which is the browser's.
 
 Without an account, saves and settings last only as long as the page.
 
@@ -88,69 +109,77 @@ other. It makes no sound and takes no keys.
 Drag one or more `.wad` files from your computer and drop them anywhere on the Games page. The
 Games page knows a WAD by its first bytes, `IWAD` or `PWAD`; it is uploaded and appears as a card.
 
-- An IWAD is a whole game: `doom.wad`, `doom2.wad`, `plutonia.wad`, `tnt.wad`, or the shareware
-  `doom1.wad`. Its card calls a known one by its game's name.
-- A PWAD adds levels or changes to a game. Playing one plays it over an IWAD with the same kind of
-  maps: one with `MAP01` levels over Doom II (or Final Doom, or Freedoom: Phase 2), one with `E1M1`
-  episodes over Doom (or Freedoom: Phase 1). Doom will not add a PWAD to the shareware IWAD.
+- An IWAD is a whole game: `doom.wad`, `doom2.wad`, `plutonia.wad`, `tnt.wad`, the shareware
+  `doom1.wad`; `heretic.wad` or the shareware `heretic1.wad`; `hexen.wad`, the full game or its
+  demo. Its card calls a known one by its game's name; an IWAD by another name is played as the game
+  its lumps say.
+- A PWAD adds levels or changes to a game. Playing one plays it over an IWAD it fits: one whose maps
+  have scripts over Hexen (`hexdd.wad`, Deathkings of the Dark Citadel, is one), one with `MAP01`
+  levels over Doom II (or Final Doom, or Freedoom: Phase 2), one with `E1M1` episodes over Doom (or
+  Freedoom: Phase 1), or over Heretic where there is no Doom with episodes. The games will not add a
+  PWAD to a shareware or demo IWAD.
 
 The WADs are kept in `/groups/users/doom`, the household's shared folder, so everyone with an
 account plays the same ones and may add to them, and they stay when the module is updated or
-installed again. **Delete game**, in the ⋮ menu of a WAD's page, deletes it for everyone; Freedoom
-is offered again once one of its WADs is gone. In EiN's terminal, `doom-fetch freedoom1.wad` (or
-`freedoom2.wad`) fetches it, as **Download** does.
+installed again. **Delete game**, in the ⋮ menu of a WAD's page, deletes it for everyone; the free
+game data is offered again once one of its WADs is gone. In EiN's terminal, `doom-fetch` with
+`freedoom1.wad`, `freedoom2.wad`, `heretic1.wad` or `hexen.wad` fetches it, as **Download** does.
 
-Heretic, Hexen and Strife run on Doom's engine too, but not on this build of it: their IWADs are
-left off the Games page.
+Strife runs on Crispy Doom too, but this module does not build it: its WADs are left off the Games
+page.
 
-In EiN's terminal, `doom-wads` lists the WADs with their titles, and Freedoom while it is not
-fetched; `games-list` lists them with every other game module's games.
+In EiN's terminal, `doom-wads` lists the WADs with their titles and the game each is played on, and
+the free game data not fetched yet; `games-list` lists them with every other game module's games.
 
 ## Sound
 
-The sound effects are mixed in the engine, each at the volume and side Doom gives it, over the
-music, and played through the browser's Web Audio: a worker has no Web Audio of its own, so the
-engine hands the page the finished mix. The music is Doom's own: its MUS tracks played on an
-emulated OPL3, the FM chip of the Sound Blaster and AdLib cards, by
-[Chocolate Doom](https://www.chocolate-doom.org)'s OPL music code and the
-[Nuked OPL3](https://github.com/nukeykt/Nuked-OPL3) emulator, so E1M1 sounds much as it did out
-of a Sound Blaster in 1993. Doom's **Options → Sound Volume** sets both.
+The sound effects are mixed in the engine, each at the volume, side and pitch the game gives it,
+over the music, and played through the browser's Web Audio: a worker has no Web Audio of its own,
+so the engine hands the page the finished mix. The music is the game's own: its MUS tracks played on
+an emulated OPL3, the FM chip of the Sound Blaster and AdLib cards, by Crispy Doom's OPL music code
+and the [Nuked OPL3](https://github.com/nukeykt/Nuked-OPL3) emulator, so E1M1 sounds much as it
+did out of a Sound Blaster in 1993. The game's sound volume menu sets both.
 
 ## Not yet
 
-No mouse, no starting on a map, and no playing together. The games module has all three for a game
-module that asks for them; Doom here does not ask yet.
+No starting on a map, and no playing together. The games module has both for a game module that
+asks for them; the module does not ask yet.
 
 ## Layout
 
-| Path                                 | What it is for                                                                                                                                            |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mod.json`                           | The manifest: the games module it needs, the engine's worker, and the routes of a WAD's page and the dashboard card.                                      |
-| `etc/games.d/games.json`             | What the games module knows of the module: its title, icon and route, its list and fetch commands, its WAD folder, and the WADs it takes when dropped.    |
-| `ui/pages/game.tsx`                  | A WAD's page, `/games/doom/<WAD>`: the games module's page for a game, with the module's adapter.                                                         |
-| `ui/cards/demo.tsx`                  | The dashboard card, offered in `etc/dashboard.d/cards.json`: the games module's demo card, a game running its demos.                                      |
-| `ui/adapter.ts`                      | The adapter the games module plays the WADs with: lists them, starts one, says how it is played, and names the saves and settings kept.                   |
-| `ui/doom/engine.ts`                  | Starts a WAD in the engine's worker: the build, Doom's command line, the WADs to read from EiN, the player's saves and settings, the keys.                |
-| `ui/doom/engine-worker.ts`           | The engine's worker: loads the glue and the wasm, starts Doom, and answers each frame with its picture and sound, and the saves and settings Doom writes. |
-| `ui/doom/start.ts`                   | What the page and the worker share: what the engine is started with, and where the player's files are in Doom's file system.                              |
-| `ui/doom/keys.ts`                    | Browser key codes to Doom's.                                                                                                                              |
-| `bin/doom-wads`                      | Lists the WADs with their titles and title screens, and Freedoom while it is not fetched, for the Games page, a WAD's page and the card's choice of game. |
-| `lib/wads.ts`, `lib/api.ts`          | Where the WADs are, the games known by name, the IWAD a PWAD is played with, the game data offered, and the shape `doom-wads` answers in.                 |
-| `lib/titlepic.ts`                    | Draws a WAD's title screen out of its `TITLEPIC` and palette, as a PNG.                                                                                   |
-| `bin/doom-fetch`                     | Fetches Freedoom into the WAD folder when Download is chosen, checked against its release's SHA-256.                                                      |
-| `engine/doomgeneric_ein.c`           | doomgeneric's platform layer for the worker.                                                                                                              |
-| `engine/ein_sound.c`                 | The sound module: mixes the effects on their channels over the music, as the worker asks for samples.                                                     |
-| `engine/opl_ein.c`                   | Chocolate Doom's OPL library on Nuked OPL3, rendering the music under the effects.                                                                        |
-| `engine/ein_chocolate.h`             | What Chocolate Doom's music code expects of its own headers that doomgeneric's lack.                                                                      |
-| `engine/Containerfile`               | The build: pinned emsdk image, doomgeneric commit and Chocolate Doom release.                                                                             |
-| `engine/nonblocking-wipe.patch`      | Runs the screen melt a frame at a time instead of in a loop of its own, which did not return until the melt was over.                                     |
-| `engine/quit.patch`                  | Makes Quit exit, and an exit function of the wrong type one of the right type, which WebAssembly traps on.                                                |
-| `engine/save.patch`                  | Tells the worker when Doom has saved a game, so the page can keep it.                                                                                     |
-| `engine/settings.patch`              | Puts back Chocolate Doom's reading and writing of the settings files, keys above 127 included.                                                            |
-| `assets/doom.js`, `assets/doom.wasm` | The built engine, committed, since a module is installed as its repository stands. `assets/doom-build.txt` says what built them.                          |
-| `scripts/build-engine.sh`            | Rebuilds `assets/doom.js` and `assets/doom.wasm`.                                                                                                         |
-| `test/smoke.mjs`                     | Signs in with headless Chrome, plays a little, saves screenshots.                                                                                         |
-| `deno.jsonc`                         | Generated from `mod.json` by core's `deno task sync:modules`, for type-checking in a core checkout.                                                       |
+| Path                                     | What it is for                                                                                                                                                     |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `mod.json`                               | The manifest: the games module it needs, the engine's worker, and the routes of a WAD's page and the dashboard card.                                               |
+| `etc/games.d/games.json`                 | What the games module knows of the module: its title, icon and route, its list and fetch commands, its WAD folder, and the WADs it takes when dropped.             |
+| `etc/games.d/help.md`                    | What the Games page's help says of the WADs to drop.                                                                                                               |
+| `ui/pages/game.tsx`                      | A WAD's page, `/games/doom/<WAD>`: the games module's page for a game, with the module's adapter.                                                                  |
+| `ui/cards/demo.tsx`                      | The dashboard card, offered in `etc/dashboard.d/cards.json`: the games module's demo card, a game running its demos.                                               |
+| `ui/adapter.ts`                          | The adapter the games module plays the WADs with: lists them, starts one, says how it is played, draws its keys, and names the saves and settings kept.            |
+| `ui/doom/engine.ts`                      | Starts a WAD on its engine in the worker: the build, the command line, the WADs to read from EiN, the player's saves and settings, the keys and the mouse.         |
+| `ui/doom/engine-worker.ts`               | The engine's worker: loads the game's build, starts it, and answers each frame with its picture and sound, and the saves and settings the game writes.             |
+| `ui/doom/start.ts`                       | What the page and the worker share: what the engine is started with, and where the player's files are in the game's file system.                                   |
+| `ui/doom/keys.ts`                        | Browser key codes to SDL's scancodes, which the engine takes, and to the numbers the settings files keep keys as.                                                  |
+| `ui/doom/binds.ts`                       | The player's keys and mouse buttons out of the settings files, and a key changed in the Keys dialog, written back and handed to the game.                          |
+| `ui/doom/pad.tsx`                        | The drawing of the keyboard and the mouse with the player's keys, in the page's header and the Keys dialog, where a click and a key change one.                    |
+| `bin/doom-wads`                          | Lists the WADs with their titles, title screens and games, and the free game data not fetched yet, for the Games page, a WAD's page and the card's choice of game. |
+| `lib/wads.ts`, `lib/api.ts`              | Where the WADs are, the games known by name, the game a WAD is played on and the IWAD a PWAD is, the game data offered, and the shape `doom-wads` answers in.      |
+| `lib/titlepic.ts`                        | Draws a WAD's title screen out of Doom's `TITLEPIC` or Heretic's and Hexen's `TITLE` and its palette, as a PNG.                                                    |
+| `bin/doom-fetch`                         | Fetches Freedoom, Heretic's shareware or Hexen's demo into the WAD folder when Download is chosen, checked against its SHA-256.                                    |
+| `engine/ein_main.c`                      | The engine's start and tick for the worker, in place of Crispy's `i_main.c`.                                                                                       |
+| `engine/ein_video.c`                     | The frame and the input for the worker, in place of Crispy's `i_video.c`: the 8-bit frame as R, G, B, A bytes, the keys and the mouse as SDL's events.             |
+| `engine/ein_sound.c`                     | The sound module: mixes the effects on their channels over the music, as the worker asks for samples.                                                              |
+| `engine/opl_ein.c`                       | Crispy's OPL library on Nuked OPL3, rendering the music under the effects.                                                                                         |
+| `engine/ein_sdl.c`                       | The few SDL calls left outside video, sound and the joystick: the time, the configuration directory, the input's state.                                            |
+| `engine/ein_stubs.c`                     | What the engine has no use for: the joystick, ENDOOM, the startup screens, SDL_net.                                                                                |
+| `engine/config.h`                        | What Crispy's build system would write into `config.h`.                                                                                                            |
+| `engine/loop.patch`                      | Makes each game's loop hand its frame to the worker rather than run forever, and Doom's screen melt wait by returning rather than spinning.                        |
+| `engine/actions.patch`                   | Calls each of Doom's state actions with as many arguments as it takes, which WebAssembly holds it to.                                                              |
+| `engine/build.sh`                        | Compiles and links the three games.                                                                                                                                |
+| `engine/Containerfile`                   | The build: pinned emsdk image, Crispy Doom release and SDL headers.                                                                                                |
+| `assets/<game>.js`, `assets/<game>.wasm` | The built engines, `doom`, `heretic` and `hexen`, committed, since a module is installed as its repository stands. `assets/doom-build.txt` says what built them.   |
+| `scripts/build-engine.sh`                | Rebuilds the engines in `assets/`.                                                                                                                                 |
+| `test/smoke.mjs`                         | Signs in with headless Chrome, plays a little, saves screenshots.                                                                                                  |
+| `deno.jsonc`                             | Generated from `mod.json` by core's `deno task sync:modules`, for type-checking in a core checkout.                                                                |
 
 ## Building the engine
 
@@ -159,12 +188,11 @@ Needs only docker with buildx, or podman; nothing is installed on the host.
     scripts/build-engine.sh
 
 It builds `engine/Containerfile` and exports the result into `assets/` with the local exporter. The
-source of the committed `assets/doom.wasm` is doomgeneric at the commit `engine/Containerfile`
-pins, with `engine/nonblocking-wipe.patch`, `engine/quit.patch`, `engine/save.patch` and
-`engine/settings.patch` applied, Chocolate Doom's `i_oplmusic.c`, `midifile.c`, `opl3.c` and
-`opl_queue.c` at the release it pins, and the `engine/` files added. It is built for a Web Worker
-(`-sENVIRONMENT=worker`), as an ES module that runs nothing by itself (`-sINVOKE_RUN=0`) and touches
-no DOM: the worker starts the game.
+source of the committed engines is Crispy Doom at the release `engine/Containerfile` pins, with
+`engine/loop.patch` and `engine/actions.patch` applied, compiled against SDL 2's headers at the
+release it pins, with the `engine/` files in place of Crispy's platform files (`engine/build.sh`
+names those left out). Each is built for a Web Worker (`-sENVIRONMENT=worker`), as an ES module
+that runs nothing by itself (`-sINVOKE_RUN=0`) and touches no DOM: the worker starts the game.
 
 ## Developing
 

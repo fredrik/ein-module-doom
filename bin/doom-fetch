@@ -1,48 +1,88 @@
 #!bash
 # doom-fetch — fetches the free game data offered on the Games page into Doom's WAD folder, when
-# someone chooses Fetch there: Freedoom (https://freedoom.github.io), whose Phase 1 plays as Doom and
-# Phase 2 as Doom II. Either WAD fetches its release's zip, which has both: it is checked against its
-# SHA-256, and its two WADs unpacked into the folder doom-wads lists; a WAD already there under the
-# same name is left as it is. It runs as whoever runs it, which has to be the administrator: EiN
-# lets only the administrator fetch URLs.
+# someone chooses Download there: Freedoom (https://freedoom.github.io), whose Phase 1 plays as Doom
+# and Phase 2 as Doom II, Heretic's shareware episode and Hexen's four-level demo, which Raven
+# Software let anyone play and pass on, from the idgames archive. Each comes as a zip, checked
+# against its SHA-256 and unpacked, and its WADs moved into the folder doom-wads lists; a WAD already
+# there under the same name is left as it is. It runs as whoever runs it, which has to be the
+# administrator: EiN lets only the administrator fetch URLs.
 arg --desc "Fetch the free game data offered on the Games page into Doom's WAD folder"
 arg --effect write
-arg '<game>' string "freedoom1.wad or freedoom2.wad (either fetches Freedoom: Phase 1 and Phase 2)"
+arg '<game>' string "freedoom1.wad or freedoom2.wad (either fetches Freedoom: Phase 1 and Phase 2), heretic1.wad (Heretic's shareware) or hexen.wad (Hexen's demo)"
 arg --example "doom-fetch freedoom1.wad"
 arg --returns "nothing; the WADs are in /groups/users/doom."
 arg --export
 
-if [ "$GAME" != freedoom1.wad ] && [ "$GAME" != freedoom2.wad ]; then
-  echo "doom-fetch: $GAME is not a WAD it fetches: freedoom1.wad, freedoom2.wad" >&2
-  exit 2
-fi
-release=0.13.0
-url=https://github.com/freedoom/freedoom/releases/download/v$release/freedoom-$release.zip
-sha256=3f9b264f3e3ce503b4fb7f6bdcb1f419d93c7b546f4df3e874dd878db9688f59
 wads=/groups/users/doom
+idgames=https://ftp.fu-berlin.de/pc/msdos/games/idgames/idstuff
+case "$GAME" in
+  freedoom1.wad | freedoom2.wad)
+    name="Freedoom 0.13.0"
+    url=https://github.com/freedoom/freedoom/releases/download/v0.13.0/freedoom-0.13.0.zip
+    sha256=3f9b264f3e3ce503b4fb7f6bdcb1f419d93c7b546f4df3e874dd878db9688f59
+    ;;
+  heretic1.wad)
+    name="Heretic's shareware"
+    url=$idgames/heretic/htic_v12.zip
+    sha256=5ffbb47e4a5750fef144c312973ee5782266b4a63474b77478103b6c1aaed39d
+    ;;
+  hexen.wad)
+    name="Hexen's demo"
+    url=$idgames/hexen/hexndemo.zip
+    sha256=469ee3a254959d2fca624aec7391292fbd1ac3ebd9074b65f05cbc74de3c4572
+    ;;
+  *)
+    echo "doom-fetch: $GAME is not a WAD it fetches: freedoom1.wad, freedoom2.wad, heretic1.wad, hexen.wad" >&2
+    exit 2
+    ;;
+esac
 # Unpacked outside the household's folders, where EiN's media pipelines would read the release's
 # pictures and documents.
-work=/tmp/doom-fetch-freedoom
+work=/tmp/doom-fetch
 
 mkdir -p "$wads"
-if ! curl -fLs -o "$work.zip" "$url"; then
+[ -e "$work" ] && rm -r "$work"
+mkdir -p "$work"
+if ! curl -fLs -o "$work/fetched.zip" "$url"; then
   echo "doom-fetch: could not fetch $url" >&2
+  rm -r "$work"
   exit 1
 fi
-if ! attrs "$work.zip" | grep -q "$sha256"; then
-  echo "doom-fetch: $url is not the release it should be (its SHA-256 is not $sha256)" >&2
-  rm "$work.zip"
+if ! attrs "$work/fetched.zip" | grep -q "$sha256"; then
+  echo "doom-fetch: $url is not the one it should be (its SHA-256 is not $sha256)" >&2
+  rm -r "$work"
   exit 1
 fi
-if ! unzip -o -d "$work" "$work.zip" > /dev/null; then
+if ! unzip -o -d "$work/unpacked" "$work/fetched.zip" > /dev/null; then
   echo "doom-fetch: could not unpack $url" >&2
-  rm "$work.zip"
-  [ -e "$work" ] && rm -r "$work"
+  rm -r "$work"
   exit 1
 fi
-for wad in freedoom1.wad freedoom2.wad; do
-  # One someone uploaded under the same name is theirs to keep.
-  [ -e "$wads/$wad" ] || mv "$work/freedoom-$release/$wad" "$wads/$wad"
-done
-rm -r "$work" "$work.zip"
-echo "doom-fetch: Freedoom $release is in $wads"
+
+# The WAD unpacked at $1 into the folder as $2, unless one someone uploaded under that name is there
+# already, which is theirs to keep.
+keep() {
+  [ -e "$wads/$2" ] || mv "$1" "$wads/$2"
+}
+
+case "$GAME" in
+  freedoom1.wad | freedoom2.wad)
+    keep "$work/unpacked/freedoom-0.13.0/freedoom1.wad" freedoom1.wad
+    keep "$work/unpacked/freedoom-0.13.0/freedoom2.wad" freedoom2.wad
+    ;;
+  heretic1.wad)
+    # Heretic's installer is a self-extracting zip split in two for floppies.
+    cat "$work/unpacked/HTIC_V12.1" "$work/unpacked/HTIC_V12.2" > "$work/installer.zip"
+    if ! unzip -o -d "$work/installer" "$work/installer.zip" > /dev/null; then
+      echo "doom-fetch: could not unpack Heretic's installer from $url" >&2
+      rm -r "$work"
+      exit 1
+    fi
+    keep "$work/installer/HERETIC1.WAD" heretic1.wad
+    ;;
+  hexen.wad)
+    keep "$work/unpacked/HEXEN.WAD" hexen.wad
+    ;;
+esac
+rm -r "$work"
+echo "doom-fetch: $name is in $wads"

@@ -1,0 +1,101 @@
+diff --git a/src/doom/d_main.c b/src/doom/d_main.c
+index 49a200fa..7e4c7988 100644
+--- a/src/doom/d_main.c
++++ b/src/doom/d_main.c
+@@ -91,6 +91,7 @@
+ //  calls I_GetTime, I_StartFrame, and I_StartTic
+ //
+ void D_DoomLoop (void);
++void EIN_MainLoop(void (*run_frame)(void)); // [EiN]
+ 
+ static char *gamedescription;
+ 
+@@ -532,12 +533,14 @@ void D_RunFrame()
+ 
+     if (wipe)
+     {
+-        do
++        // [EiN] the page asks for the next frame rather than this one
++        // waiting for a tic
++        nowtime = I_GetTime ();
++        tics = nowtime - wipestart;
++        if (tics <= 0)
+         {
+-            nowtime = I_GetTime ();
+-            tics = nowtime - wipestart;
+-            I_Sleep(1);
+-        } while (tics <= 0);
++            return;
++        }
+ 
+         wipestart = nowtime;
+         wipe = !wipe_ScreenWipe(wipe_Melt
+@@ -623,10 +626,8 @@ void D_DoomLoop (void)
+         wipegamestate = gamestate;
+     }
+ 
+-    while (1)
+-    {
+-        D_RunFrame();
+-    }
++    // [EiN] the worker runs the frames, as the page asks for them
++    EIN_MainLoop(D_RunFrame);
+ }
+ 
+ 
+diff --git a/src/heretic/d_main.c b/src/heretic/d_main.c
+index e71dae98..d4adb9da 100644
+--- a/src/heretic/d_main.c
++++ b/src/heretic/d_main.c
+@@ -383,6 +383,10 @@ boolean D_GrabMouseCallback(void)
+ //
+ //---------------------------------------------------------------------------
+ 
++// [EiN] the worker runs the frames, as the page asks for them
++void EIN_MainLoop(void (*run_frame)(void));
++static void RunFrame(void);
++
+ void D_DoomLoop(void)
+ {
+     // [crispy] update the "singleplayer" variable
+@@ -426,7 +430,11 @@ void D_DoomLoop(void)
+ 
+     main_loop_started = true;
+ 
+-    while (1)
++    EIN_MainLoop(RunFrame);
++}
++
++static void RunFrame(void)
++{
+     {
+         static int oldgametic;
+         // Frame syncronous IO operations
+diff --git a/src/hexen/h2_main.c b/src/hexen/h2_main.c
+index ff1bf1c2..a94ed8f5 100644
+--- a/src/hexen/h2_main.c
++++ b/src/hexen/h2_main.c
+@@ -1001,6 +1001,10 @@ static void WarpCheck(void)
+ //
+ //==========================================================================
+ 
++// [EiN] the worker runs the frames, as the page asks for them
++void EIN_MainLoop(void (*run_frame)(void));
++static void RunFrame(void);
++
+ void H2_GameLoop(void)
+ {
+     // [crispy] update the "singleplayer" variable
+@@ -1042,7 +1046,11 @@ void H2_GameLoop(void)
+     I_RegisterWindowIcon(hexen_icon_data, hexen_icon_w, hexen_icon_h);
+     I_InitGraphics();
+ 
+-    while (1)
++    EIN_MainLoop(RunFrame);
++}
++
++static void RunFrame(void)
++{
+     {
+         static int oldgametic;
+         // Frame syncronous IO operations
