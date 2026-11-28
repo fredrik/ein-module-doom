@@ -6,7 +6,8 @@ import type { Game } from '@doom/api';
 import { findWads, WADS } from '@doom/wads';
 
 const doomWads = async (cmd: Command): CmdReturn => {
-  const wads = await findWads(cmd);
+  const [only] = cmd.args.filter((arg) => !arg.startsWith('-'));
+  const wads = await findWads(cmd, only);
   if (cmd.json) await cmd.writeJSON(wads satisfies Game[] satisfies GameEntry[]);
   else {
     for (const wad of wads) {
@@ -21,9 +22,9 @@ doomWads.spec = {
   name: 'doom-wads',
   effect: 'read' as const,
   description: `List the WADs in ${WADS}, Doom's, Heretic's and Hexen's, known games first, by title, in the order they came out; then the free ones doom-fetch fetches that are not there yet`,
-  args: [],
+  args: [{ name: 'wad', type: 'path' as const, optional: true, description: `only this WAD of ${WADS}, as someone who opened a share link to it reads it` }],
   flags: [],
-  examples: ['doom-wads'],
+  examples: ['doom-wads', `doom-wads ${WADS}/doom2.wad`],
   returns:
     'One entry per WAD. One in the folder: its id (the file\'s name), title, state installed, path, detail, size in bytes, cover (its title screen as a PNG data: URL), kind (IWAD or PWAD), engine (doom, heretic or hexen: the game it is played on), iwad (the IWAD a PWAD is played with), maps (its maps by their lumps\' names, a PWAD\'s own or its IWAD\'s) and hostable (whether it can be hosted for others to join). A WAD of Strife is left out. One offered: its id, title, state offered, about and download (bytes).',
 };

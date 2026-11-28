@@ -1,7 +1,7 @@
 # doom
 
 A module for [EiN](https://einhq.eu) that plays Doom, Heretic and Hexen in the browser, with sound
-and music, mouse look and the keys you choose, alone or together: the 1993 one, shotgun and all, a
+and music, mouse look and the keys you choose, alone or together, with someone a game is shared with by a link too: the 1993 one, shotgun and all, a
 click away from the family's recipes. Its games are on EiN's **Games** page, which the games module gives: this module
 brings the engines and the WADs, and the games module the page each is played on, the saves, the
 sound and the dropped files.
@@ -113,9 +113,17 @@ address of its own, 10.66.1.1 and on, which the game's search for games, a broad
 play under your account's name, which the game keeps as its `player_name`.
 
 An administrator starts the service with `service start doom-server`; it runs until it is stopped.
-A WAD is one file, so its hosted games are beside it, in the WAD folder's `.servers/<WAD>`, a folder
-each with its `server.json` and its `socket`; the service empties them when it starts, since no
-game outlives it.
+A WAD's hosted games are in it, in its `.servers`, as a folder game's are in its folder (a file
+holds children in EiN), a folder each with its `server.json` and its `socket`, so whatever shares
+the WAD shares them; the service empties them when it starts, since no game outlives it.
+
+### Someone without an account
+
+**⋮** > **Share** on a game's page makes a link to the WAD that you send to someone without an
+account here: they open it in their browser and play the game, alone or on a server of it that runs
+here. Nothing of theirs is kept. It is the games module's share link (its documentation has the
+rest); `doom-wads <WAD>` lists that WAD alone, which is all they read. A PWAD's link gives them no
+IWAD to play it on, so share an IWAD: Doom II, say, not a PWAD over it.
 
 ### In the terminal
 

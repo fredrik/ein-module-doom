@@ -258,15 +258,47 @@ async function titlePicture(cmd: Command, wads: WadDirectory[]): Promise<string 
   return await (patch ? titlePng(picture, colours) : rawTitlePng(picture, colours));
 }
 
+/** Whether a file named `name` is a WAD the module plays: a `.wad`, and none of Strife's (`OTHER_GAMES`). */
+const playable = (name: string): boolean => /\.wad$/i.test(name) && !OTHER_GAMES[name.toLowerCase()];
+
 /**
  * The WADs in `WADS`, known IWADs first, then the free game data offered whose WADs are not there,
  * as `doom-wads` lists them. A file that is not a WAD, and a WAD of Strife (`OTHER_GAMES`), which
- * this module does not play, are left out.
+ * this module does not play, are left out. With `only`, a WAD's path in `WADS`, that WAD alone, or
+ * none when it is no WAD the module plays: what someone who opened a share link to it reads, who may
+ * not list `WADS`, so a PWAD shared has no IWAD for them.
  */
-export async function findWads(cmd: Command): Promise<Game[]> {
+export async function findWads(cmd: Command, only?: string): Promise<Game[]> {
+  if (only !== undefined) {
+    const name = only.slice(WADS.length + 1);
+    if (!only.startsWith(`${WADS}/`) || !name || name.includes('/') || !playable(name)) return [];
+    const node = await cmd.sys.vfs.get(cmd.access, only).catch(() => undefined);
+    if (node?.type !== 'file') return [];
+    const listed = await cmd.sys.vfs.children(cmd.access, WADS).catch(() => undefined);
+    const names = listed?.filter((child) => child.node.type === 'file' && playable(child.name)).map((child) => child.name) ?? [name];
+    return await readWads(cmd, names, name);
+  }
   // No folder yet is no WADs yet: a fetch or a drop makes it.
   const children = await cmd.sys.vfs.children(cmd.access, WADS).catch(() => []);
-  const names = children.filter((child) => child.node.type === 'file' && /\.wad$/i.test(child.name) && !OTHER_GAMES[child.name.toLowerCase()]).map((child) => child.name);
+  const names = children.filter((child) => child.node.type === 'file' && playable(child.name)).map((child) => child.name);
+  const offered = OFFERS.flatMap((offer) =>
+    offer.wads.filter((wad) => !names.some((name) => name.toLowerCase() === wad)).map((wad): OfferedWad => ({
+      id: wad,
+      // The Hexen offered is its demo.
+      title: wad === 'hexen.wad' ? HEXEN_DEMO.title : known(wad)?.title ?? wad,
+      state: 'offered',
+      about: offer.about,
+      download: offer.download,
+    }))
+  );
+  return [...await readWads(cmd, names), ...offered];
+}
+
+/**
+ * The WADs of `names` in `WADS`, in `rank`'s order, those that are WADs; with `wanted`, that one
+ * alone, the others read only for the IWAD a PWAD is played with.
+ */
+async function readWads(cmd: Command, names: string[], wanted?: string): Promise<Wad[]> {
   const read = await Promise.all(names.map(async (name) => {
     const path = `${WADS}/${name}`;
     const [node, directory] = await Promise.all([
@@ -282,47 +314,39 @@ export async function findWads(cmd: Command): Promise<Game[]> {
     engine: engineOf(wad.name, wad.directory),
     demo: hexenDemo(wad.name, wad.directory),
   }));
-  const installed = await Promise.all(wads.map(async ({ name, size, directory }): Promise<Wad> => {
-    const kind = kindOf(name, directory);
-    const iwad = kind === 'PWAD' ? iwadFor(name, directory, iwads) : undefined;
-    // What the game shows: the IWAD's lumps, and the PWAD's over them.
-    const under = iwads.find((each) => each.name === iwad);
-    const engine = under?.engine ?? (kind === 'IWAD' ? engineOf(name, directory) : name.toLowerCase() === HEXDD.name ? 'hexen' : 'doom');
-    const cover = await titlePicture(cmd, under ? [under.directory, directory] : [directory]).catch(() => undefined);
-    const naming = hexenDemo(name, directory) ? HEXEN_DEMO : name.toLowerCase() === HEXDD.name ? HEXDD : known(name);
-    const title = naming?.title ?? name;
-    const description = naming && 'description' in naming ? naming.description : undefined;
-    const iwadTitle = (wad: string) => wad.toLowerCase() === 'hexen.wad' ? 'Hexen' : known(wad)?.title ?? wad;
-    const played = kind === 'PWAD' ? iwad ? `on ${iwadTitle(iwad)}` : 'no IWAD here for it' : undefined;
-    const detail = [title === name ? undefined : name, sizeText(size), played].filter(Boolean).join(' · ');
-    // A PWAD is played on its own maps, and one without any on its IWAD's.
-    const own = mapsOf(directory);
-    const maps = own.length > 0 || !under ? own : mapsOf(under.directory);
-    return {
-      id: name,
-      title,
-      state: 'installed',
-      path: `${WADS}/${name}`,
-      detail,
-      ...(description ? { description } : {}),
-      size,
-      ...(cover ? { cover } : {}),
-      kind,
-      engine,
-      ...(iwad ? { iwad } : {}),
-      maps,
-      hostable: maps.length > 0 && (kind === 'IWAD' || under !== undefined),
-    };
-  }));
-  const offered = OFFERS.flatMap((offer) =>
-    offer.wads.filter((wad) => !names.some((name) => name.toLowerCase() === wad)).map((wad): OfferedWad => ({
-      id: wad,
-      // The Hexen offered is its demo.
-      title: wad === 'hexen.wad' ? HEXEN_DEMO.title : known(wad)?.title ?? wad,
-      state: 'offered',
-      about: offer.about,
-      download: offer.download,
-    }))
+  const installed = await Promise.all(
+    wads.filter((wad) => wanted === undefined || wad.name === wanted).map(async ({ name, size, directory }): Promise<Wad> => {
+      const kind = kindOf(name, directory);
+      const iwad = kind === 'PWAD' ? iwadFor(name, directory, iwads) : undefined;
+      // What the game shows: the IWAD's lumps, and the PWAD's over them.
+      const under = iwads.find((each) => each.name === iwad);
+      const engine = under?.engine ?? (kind === 'IWAD' ? engineOf(name, directory) : name.toLowerCase() === HEXDD.name ? 'hexen' : 'doom');
+      const cover = await titlePicture(cmd, under ? [under.directory, directory] : [directory]).catch(() => undefined);
+      const naming = hexenDemo(name, directory) ? HEXEN_DEMO : name.toLowerCase() === HEXDD.name ? HEXDD : known(name);
+      const title = naming?.title ?? name;
+      const description = naming && 'description' in naming ? naming.description : undefined;
+      const iwadTitle = (wad: string) => wad.toLowerCase() === 'hexen.wad' ? 'Hexen' : known(wad)?.title ?? wad;
+      const played = kind === 'PWAD' ? iwad ? `on ${iwadTitle(iwad)}` : 'no IWAD here for it' : undefined;
+      const detail = [title === name ? undefined : name, sizeText(size), played].filter(Boolean).join(' · ');
+      // A PWAD is played on its own maps, and one without any on its IWAD's.
+      const own = mapsOf(directory);
+      const maps = own.length > 0 || !under ? own : mapsOf(under.directory);
+      return {
+        id: name,
+        title,
+        state: 'installed',
+        path: `${WADS}/${name}`,
+        detail,
+        ...(description ? { description } : {}),
+        size,
+        ...(cover ? { cover } : {}),
+        kind,
+        engine,
+        ...(iwad ? { iwad } : {}),
+        maps,
+        hostable: maps.length > 0 && (kind === 'IWAD' || under !== undefined),
+      };
+    }),
   );
-  return [...installed.sort(byRank), ...offered];
+  return installed.sort(byRank);
 }
