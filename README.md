@@ -189,24 +189,9 @@ The smoke test wants a running EiN with the games module, this one and a WAD (`-
 
 ## Releases
 
-A release is the version in `mod.json` and a tag of the same name, `v0.3.2`; EiN installs the
-repository as it stands.
-
-- **0.3.2**: this README, brought up to date with the two releases before it.
-- **0.3.1**: the engine runs in the module's Web Worker, on the games module's kit, not on the
-  page. The WADs are read from EiN with range requests as Doom asks for them, where they were
-  downloaded whole before the game started. The sound effects are mixed in the engine with the
-  music, since a worker has no Web Audio. The settings are also written each time Doom's menu
-  closes. Needs core's module API 0.15.77 and games 0.1.1.
-- **0.3.0**: Doom is played on the games module's pages: its WADs are cards on the Games page,
-  `/games/doom/<WAD>` is the page of each, and the page of its own the module had is gone. Doom's
-  settings are kept in the player's home, as its saves are. Freedoom is downloaded from the Games
-  page when an administrator asks for it, not by a service when the module is installed. Needs the
-  games module.
-- **0.2.1**: saved games are kept in the player's home, and the last frame is dimmed after Quit.
-- **0.2.0**: the list of WADs with their title screens, dropping a WAD to upload it, Freedoom
-  fetched at install, sound, and the dashboard card.
-- **0.1.0**: Doom as an EiN module.
+A release is the version in `mod.json` and a tag of the same name, such as `v0.3.2`; EiN installs
+the repository as it stands. What each one changed is on the repository's
+[releases page](https://github.com/fredrik/ein-module-doom/releases).
 
 ## Licence
 
