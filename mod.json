@@ -1,6 +1,6 @@
 {
   "name": "doom",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Doom, Heretic and Hexen in EiN: Crispy Doom built to WebAssembly, played on the Games page",
   "license": "GPL-2.0-or-later",
   "coreApi": "^0.15.77",
